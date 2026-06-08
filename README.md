@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Axiom
 
-## Getting Started
+Permissionless on-chain AI inference. Any agent or dApp calls it, pays per-query via x402, Venice runs the AI, and 1Shot settles gas in USDC.
 
-First, run the development server:
+## What it does
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Axiom is an on-chain AI inference oracle. You send a prompt, pay a micro-fee automatically via the x402 HTTP payment protocol, and get back a Venice AI response — all without an API key, subscription, or native ETH for gas.
+
+- **No signup** — connect a MetaMask Smart Account and query immediately
+- **Pay-per-query** — x402 handles micropayments automatically in the HTTP layer
+- **No ETH for gas** — 1Shot relayer settles all transactions with USDC
+- **Scoped permissions** — ERC-7710 delegations mean the app never touches your full wallet
+
+## How it works
+
+```
+Agent / dApp
+    │
+    ├─ POST /infer
+    │
+    │  ← HTTP 402 (payment required)
+    │
+    ├─ x402 client pays via ERC-7710 delegation
+    │     └─ 1Shot relayer submits tx, gas paid in USDC
+    │
+    └─ POST /infer (retry with payment proof)
+          └─ Venice AI runs inference → response returned
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Tech stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Layer | Technology |
+|---|---|
+| AI Inference | Venice AI (text, image, multimodal) |
+| Payments | x402 HTTP payment protocol |
+| Delegation | ERC-7710 smart account delegations |
+| Permissions | ERC-7715 fine-grained permission requests |
+| Gas abstraction | 1Shot Permissionless Relayer (USDC) |
+| Wallet | MetaMask Smart Accounts via EIP-7702 |
+| Frontend | Next.js 15, Tailwind CSS, Syne font |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Pages
 
-## Learn More
+| Route | Description |
+|---|---|
+| `/` | Landing — project overview, how it works, tech stack |
+| `/oracle` | Query interface — send prompts, see responses |
+| `/dashboard` | Agent activity — tx history, costs, latency |
+| `/docs` | Integration guide — x402, ERC-7710, 1Shot |
 
-To learn more about Next.js, take a look at the following resources:
+## Getting started
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open [http://localhost:3000](http://localhost:3000).
 
-## Deploy on Vercel
+## Hackathon tracks
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Built for the MetaMask Smart Accounts Kit x 1Shot API x Venice AI Dev Cook Off.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Best x402 + ERC-7710** — x402 triggers 7710-delegated micropayments per inference call
+- **Best Use of Venice AI** — Venice is the inference engine behind every Axiom response
+- **Best Use of 1Shot Permissionless Relayer** — 1Shot executes all settlements with gas in USDC
