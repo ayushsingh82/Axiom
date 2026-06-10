@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import { createWalletClient, createPublicClient, custom, http } from "viem";
-import { base } from "viem/chains";
+import { baseSepolia } from "viem/chains";
 
 type WalletState = {
   address: string | null;
@@ -36,7 +36,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       const walletClient = createWalletClient({
-        chain: base,
+        chain: baseSepolia,
         transport: custom(window.ethereum),
       });
       const [addr] = await walletClient.requestAddresses();

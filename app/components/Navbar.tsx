@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useWallet } from "./WalletProvider";
 
 const links = [
-  { href: "/oracle", label: "Oracle" },
+  { href: "/playground", label: "Playground" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/docs", label: "Docs" },
 ];

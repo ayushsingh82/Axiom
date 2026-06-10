@@ -5,15 +5,15 @@ const PAYOUT_ADDRESS =
   process.env.ORACLE_PAYOUT_ADDRESS ?? "0x0000000000000000000000000000000000000000";
 const VENICE_API_KEY = process.env.VENICE_API_KEY ?? "";
 
-// USDC on Base
-const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-// MetaMask facilitator for Base
+// USDC on Base Sepolia
+const USDC_BASE = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+// MetaMask facilitator for Base Sepolia
 const FACILITATOR_URL =
-  "https://tx-sentinel-base-mainnet.dev-api.cx.metamask.io/platform/v2/x402";
+  "https://tx-sentinel-base-sepolia.dev-api.cx.metamask.io/platform/v2/x402";
 
 const paymentRequirements = {
   scheme: "exact",
-  network: "eip155:8453",
+  network: "eip155:84532",
   maxAmountRequired: "10000", // 0.01 USDC (6 decimals)
   resource: "/api/infer",
   description: "Axiom AI inference — pay per query",
