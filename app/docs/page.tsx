@@ -1,4 +1,5 @@
 import Navbar from "@/app/components/Navbar";
+import RailLines from "@/app/components/RailLines";
 
 const navLinks = [
   { id: "what-is-axiom", label: "What is Axiom?" },
@@ -33,7 +34,8 @@ function CodeBlock({
 
 export default function DocsPage() {
   return (
-    <div className="min-h-screen bg-black text-white font-[family-name:var(--font-syne)]">
+    <div className="min-h-screen bg-black text-white font-[family-name:var(--font-syne)] relative overflow-hidden">
+      <RailLines />
       <Navbar />
 
       <div className="max-w-5xl mx-auto px-8 pt-20 pb-24 flex gap-14">

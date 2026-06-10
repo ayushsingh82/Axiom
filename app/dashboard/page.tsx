@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Navbar from "@/app/components/Navbar";
+import RailLines from "@/app/components/RailLines";
 import { useWallet } from "@/app/components/WalletProvider";
 
 const mockActivity = [
@@ -45,7 +46,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white font-[family-name:var(--font-syne)]">
+    <div className="min-h-screen bg-black text-white font-[family-name:var(--font-syne)] relative overflow-hidden">
+      <RailLines />
       <Navbar />
 
       <div className="max-w-5xl mx-auto px-8 pt-20 pb-24">

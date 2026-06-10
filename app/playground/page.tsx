@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Navbar from "@/app/components/Navbar";
+import RailLines from "@/app/components/RailLines";
 import { useWallet } from "@/app/components/WalletProvider";
 
 type Mode = "text" | "image" | "audio";
@@ -187,7 +188,8 @@ export default function PlaygroundPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white font-[family-name:var(--font-syne)] flex flex-col">
+    <div className="min-h-screen bg-black text-white font-[family-name:var(--font-syne)] flex flex-col relative overflow-hidden">
+      <RailLines />
       <Navbar />
 
       <div className="flex-1 max-w-5xl mx-auto w-full px-8 pt-10 pb-6 flex flex-col">
