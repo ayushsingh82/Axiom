@@ -34,7 +34,7 @@ function CodeBlock({
 
 export default function DocsPage() {
   return (
-    <div className="min-h-screen bg-black text-white font-[family-name:var(--font-syne)] relative overflow-hidden">
+    <div className="min-h-screen bg-black text-white font-[family-name:var(--font-syne)] relative">
       <RailLines />
       <Navbar />
 
