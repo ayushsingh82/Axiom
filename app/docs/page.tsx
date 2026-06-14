@@ -1,5 +1,6 @@
 import Navbar from "@/app/components/Navbar";
 import RailLines from "@/app/components/RailLines";
+import { CopyCodeBlock } from "@/app/components/CopyCodeBlock";
 
 const navLinks = [
   { id: "what-is-axiom", label: "What is Axiom?" },
@@ -9,28 +10,6 @@ const navLinks = [
   { id: "integration", label: "Integration" },
   { id: "endpoints", label: "API Reference" },
 ];
-
-function CodeBlock({
-  lang,
-  code,
-  label,
-}: {
-  lang: string;
-  code: string;
-  label?: string;
-}) {
-  return (
-    <div className="border border-white/10 overflow-hidden mt-4">
-      <div className="bg-white/[0.03] border-b border-white/10 px-5 py-2.5 flex items-center justify-between">
-        {label && <span className="text-xs text-white/40">{label}</span>}
-        <span className="text-xs font-mono text-white/20 ml-auto">{lang}</span>
-      </div>
-      <pre className="bg-black px-5 py-5 font-mono text-xs text-white/55 leading-relaxed overflow-x-auto whitespace-pre">
-        {code}
-      </pre>
-    </div>
-  );
-}
 
 export default function DocsPage() {
   return (
@@ -42,27 +21,27 @@ export default function DocsPage() {
         {/* Sidebar */}
         <aside className="hidden lg:block w-44 shrink-0">
           <div className="sticky top-24 pt-1">
-          <p className="text-[10px] text-white/25 uppercase tracking-widest mb-4">Contents</p>
-          <nav className="flex flex-col gap-0.5">
-            {navLinks.map((link) => (
-              <a
-                key={link.id}
-                href={`#${link.id}`}
-                className="text-xs text-white/40 hover:text-white py-1.5 transition-colors border-l border-white/10 pl-3 hover:border-white/30"
-              >
-                {link.label}
-              </a>
-            ))}
-          </nav>
+            <p className="text-[10px] text-white/40 uppercase tracking-widest mb-4">Contents</p>
+            <nav className="flex flex-col gap-0.5">
+              {navLinks.map((link) => (
+                <a
+                  key={link.id}
+                  href={`#${link.id}`}
+                  className="text-xs text-white/60 hover:text-white py-1.5 transition-colors border-l border-white/15 pl-3 hover:border-white/50"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </nav>
           </div>
         </aside>
 
         {/* Main content */}
         <div className="flex-1 min-w-0 space-y-16">
           <div>
-            <p className="text-xs text-white/30 uppercase tracking-widest mb-3">Docs</p>
+            <p className="text-xs text-white/50 uppercase tracking-widest mb-3">Docs</p>
             <h1 className="text-4xl font-bold text-white mb-3">Integration Guide</h1>
-            <p className="text-white/40 text-sm leading-relaxed max-w-xl">
+            <p className="text-white/70 text-sm leading-relaxed max-w-xl">
               How to query Axiom from any dApp, agent, or script — and how to embed
               Venice AI inference + x402 micropayments into your own project.
             </p>
@@ -71,17 +50,17 @@ export default function DocsPage() {
           {/* What is Axiom */}
           <section id="what-is-axiom">
             <h2 className="text-xl font-bold text-white mb-3">What is Axiom?</h2>
-            <p className="text-sm text-white/50 leading-relaxed mb-4">
+            <p className="text-sm text-white/75 leading-relaxed mb-4">
               Axiom is a permissionless AI inference gateway that lets any on-chain agent or dApp
-              pay for AI queries using <span className="text-white/80">x402</span> — an HTTP-native
+              pay for AI queries using <span className="text-white font-semibold">x402</span> — an HTTP-native
               micropayment protocol. There is no subscription, no API key, and no custodial account.
-              Every query costs a fraction of a cent in USDC, settled on Base.
+              Every query costs a fraction of a cent in USDC, settled on Base Sepolia.
             </p>
-            <p className="text-sm text-white/50 leading-relaxed">
+            <p className="text-sm text-white/75 leading-relaxed">
               Under the hood, Axiom routes inference through{" "}
-              <span className="text-white/80">Venice AI</span> — a privacy-first, uncensored AI
+              <span className="text-white font-semibold">Venice AI</span> — a privacy-first, uncensored AI
               platform — and settles payments via{" "}
-              <span className="text-white/80">MetaMask Smart Accounts</span> using ERC-7710
+              <span className="text-white font-semibold">MetaMask Smart Accounts</span> using ERC-7710
               delegations so users only sign once per session.
             </p>
 
@@ -93,7 +72,7 @@ export default function DocsPage() {
               ].map((item) => (
                 <div key={item.label} className="bg-black px-5 py-5">
                   <p className="text-sm font-semibold text-white mb-1">{item.label}</p>
-                  <p className="text-xs text-white/35 leading-relaxed">{item.desc}</p>
+                  <p className="text-xs text-white/60 leading-relaxed">{item.desc}</p>
                 </div>
               ))}
             </div>
@@ -134,10 +113,10 @@ export default function DocsPage() {
                   key={item.step}
                   className={`flex gap-5 px-6 py-5 ${i < 4 ? "border-b border-white/8" : ""}`}
                 >
-                  <span className="text-xs font-mono text-white/15 mt-0.5 shrink-0">{item.step}</span>
+                  <span className="text-xs font-mono text-white/30 mt-0.5 shrink-0">{item.step}</span>
                   <div>
                     <p className="text-sm font-semibold text-white mb-1">{item.title}</p>
-                    <p className="text-xs text-white/40 leading-relaxed">{item.desc}</p>
+                    <p className="text-xs text-white/60 leading-relaxed">{item.desc}</p>
                   </div>
                 </div>
               ))}
@@ -147,7 +126,7 @@ export default function DocsPage() {
           {/* Venice AI */}
           <section id="venice-ai">
             <h2 className="text-xl font-bold text-white mb-3">Venice AI</h2>
-            <p className="text-sm text-white/50 leading-relaxed mb-5">
+            <p className="text-sm text-white/75 leading-relaxed mb-5">
               Venice AI provides privacy-preserving inference. Prompts are never logged or used
               for training. Axiom exposes three Venice modalities:
             </p>
@@ -181,23 +160,23 @@ export default function DocsPage() {
                     style={{ background: item.color + "60" }}
                   />
                   <p className="text-sm font-bold text-white mb-1 mt-1">{item.label}</p>
-                  <p className="text-[10px] font-mono text-white/20 mb-2">{item.endpoint}</p>
-                  <p className="text-xs text-white/40 leading-relaxed mb-2">{item.desc}</p>
-                  <p className="text-[10px] text-white/20 font-mono">{item.models}</p>
+                  <p className="text-[10px] font-mono text-white/40 mb-2">{item.endpoint}</p>
+                  <p className="text-xs text-white/65 leading-relaxed mb-2">{item.desc}</p>
+                  <p className="text-[10px] text-white/35 font-mono">{item.models}</p>
                 </div>
               ))}
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-px bg-white/10 border border-white/10 overflow-hidden">
               <div className="bg-black px-5 py-4">
-                <p className="text-xs text-white/30 uppercase tracking-wider mb-1.5">x402 Balance</p>
-                <p className="text-[10px] font-mono text-white/20 mb-1">GET /api/venice/x402/balance/&#123;address&#125;</p>
-                <p className="text-xs text-white/40">Check a wallet&apos;s Venice credit balance. Requires SIWX auth.</p>
+                <p className="text-xs text-white/50 uppercase tracking-wider mb-1.5">x402 Balance</p>
+                <p className="text-[10px] font-mono text-white/40 mb-1">GET /api/venice/x402/balance/&#123;address&#125;</p>
+                <p className="text-xs text-white/60">Check a wallet&apos;s Venice credit balance. Requires SIWX auth.</p>
               </div>
               <div className="bg-black px-5 py-4">
-                <p className="text-xs text-white/30 uppercase tracking-wider mb-1.5">x402 Transactions</p>
-                <p className="text-[10px] font-mono text-white/20 mb-1">GET /api/venice/x402/transactions/&#123;address&#125;</p>
-                <p className="text-xs text-white/40">Paginated credit ledger. Requires SIWX auth.</p>
+                <p className="text-xs text-white/50 uppercase tracking-wider mb-1.5">x402 Transactions</p>
+                <p className="text-[10px] font-mono text-white/40 mb-1">GET /api/venice/x402/transactions/&#123;address&#125;</p>
+                <p className="text-xs text-white/60">Paginated credit ledger. Requires SIWX auth.</p>
               </div>
             </div>
           </section>
@@ -205,14 +184,14 @@ export default function DocsPage() {
           {/* x402 */}
           <section id="x402">
             <h2 className="text-xl font-bold text-white mb-3">x402 Payments</h2>
-            <p className="text-sm text-white/50 leading-relaxed mb-4">
+            <p className="text-sm text-white/75 leading-relaxed mb-4">
               x402 is an extension of HTTP 402 Payment Required. A server advertises payment
               requirements in the response body. The client pays on-chain and retries with an{" "}
-              <code className="text-white/70 bg-white/5 px-1 py-0.5">X-PAYMENT</code> header. No
-              browser popups, no approval UI on every call — just a signed USDC transfer on Base.
+              <code className="text-white bg-white/8 px-1 py-0.5">X-PAYMENT</code> header. No
+              browser popups, no approval UI on every call — just a signed USDC transfer on Base Sepolia.
             </p>
 
-            <CodeBlock
+            <CopyCodeBlock
               lang="json"
               label="402 response body"
               code={`{
@@ -229,7 +208,7 @@ export default function DocsPage() {
 }`}
             />
 
-            <CodeBlock
+            <CopyCodeBlock
               lang="typescript"
               label="Client — pay and retry"
               code={`const res = await fetch("/api/infer", {
@@ -259,14 +238,14 @@ if (res.status === 402) {
           {/* Integration */}
           <section id="integration">
             <h2 className="text-xl font-bold text-white mb-1">Integration</h2>
-            <p className="text-sm text-white/40 mb-6">
+            <p className="text-sm text-white/65 mb-6">
               Copy the snippets below to add Axiom inference into any dApp.
             </p>
 
-            <h3 className="text-sm font-semibold text-white/80 mb-1 uppercase tracking-wider text-xs">
+            <h3 className="text-xs font-semibold text-white uppercase tracking-wider mb-1">
               Vanilla JavaScript / TypeScript
             </h3>
-            <CodeBlock
+            <CopyCodeBlock
               lang="typescript"
               label="queryAxiom.ts — drop this in your project"
               code={`// No SDK needed — just fetch()
@@ -284,7 +263,7 @@ export async function queryAxiom(
     body: JSON.stringify({ prompt, model }),
   });
 
-  if (probe.ok) return probe.json(); // already paid somehow
+  if (probe.ok) return probe.json();
 
   if (probe.status !== 402) {
     throw new Error(\`Unexpected status: \${probe.status}\`);
@@ -293,7 +272,6 @@ export async function queryAxiom(
   const { accepts } = await probe.json();
 
   // 2. Pay using your preferred x402 client or wallet
-  //    e.g. @coinbase/x402, @metamask/x402-client, or manual ERC-20 transfer
   const payment = await yourX402Client.pay(accepts[0]);
 
   // 3. Retry with payment header
@@ -312,10 +290,10 @@ export async function queryAxiom(
 }`}
             />
 
-            <h3 className="text-sm font-semibold text-white/80 mb-1 mt-8 uppercase tracking-wider text-xs">
+            <h3 className="text-xs font-semibold text-white uppercase tracking-wider mb-1 mt-8">
               React Hook
             </h3>
-            <CodeBlock
+            <CopyCodeBlock
               lang="typescript"
               label="useAxiom.ts"
               code={`import { useState, useCallback } from "react";
@@ -349,10 +327,10 @@ export function useAxiom(model?: string) {
 // await query("Explain ERC-7710 in one sentence");`}
             />
 
-            <h3 className="text-sm font-semibold text-white/80 mb-1 mt-8 uppercase tracking-wider text-xs">
+            <h3 className="text-xs font-semibold text-white uppercase tracking-wider mb-1 mt-8">
               Venice AI Direct (chat, image, audio)
             </h3>
-            <CodeBlock
+            <CopyCodeBlock
               lang="typescript"
               label="venice.ts — call any Venice endpoint via Axiom proxy"
               code={`const BASE = "https://your-axiom.vercel.app";
@@ -384,10 +362,10 @@ export const speak = (text: string, voice = "af_sky") =>
 // returns Blob — create URL with URL.createObjectURL(blob)`}
             />
 
-            <h3 className="text-sm font-semibold text-white/80 mb-1 mt-8 uppercase tracking-wider text-xs">
+            <h3 className="text-xs font-semibold text-white uppercase tracking-wider mb-1 mt-8">
               curl
             </h3>
-            <CodeBlock
+            <CopyCodeBlock
               lang="bash"
               label="Quick test"
               code={`# Step 1 — probe (expect 402)
@@ -401,7 +379,7 @@ curl -X POST https://your-axiom.vercel.app/api/infer \\
   -H "X-PAYMENT: <PAYMENT_JSON>" \\
   -d '{"prompt": "What is Base chain?", "model": "venice-uncensored"}'
 
-# Venice image generation (no x402 required — uses server-side API key)
+# Venice image generation (no x402 required)
 curl -X POST https://your-axiom.vercel.app/api/venice/image/generate \\
   -H "Content-Type: application/json" \\
   -d '{"model": "grok-imagine-image", "prompt": "A neon cityscape on Base chain"}'`}
@@ -478,10 +456,10 @@ curl -X POST https://your-axiom.vercel.app/api/venice/image/generate \\
                     {ep.method}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs font-mono text-white/70">{ep.path}</span>
-                    <p className="text-xs text-white/35 mt-1 leading-relaxed">{ep.desc}</p>
+                    <span className="text-xs font-mono text-white/85">{ep.path}</span>
+                    <p className="text-xs text-white/55 mt-1 leading-relaxed">{ep.desc}</p>
                   </div>
-                  <span className="shrink-0 text-[10px] font-mono text-white/20 border border-white/10 px-2 py-0.5">
+                  <span className="shrink-0 text-[10px] font-mono text-white/40 border border-white/15 px-2 py-0.5">
                     {ep.auth}
                   </span>
                 </div>
