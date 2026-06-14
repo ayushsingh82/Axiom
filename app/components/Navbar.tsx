@@ -14,7 +14,7 @@ const links = [
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { address, isConnecting, isConnected, connect, disconnect } = useWallet();
+  const { address, isConnecting, isConnected, isFlask, connect, disconnect } = useWallet();
   const [showMenu, setShowMenu] = useState(false);
 
   return (
@@ -57,6 +57,11 @@ export default function Navbar() {
               className="flex items-center gap-2 px-3 sm:px-4 py-2 border border-[#3B82F6]/40 text-[#3B82F6] hover:border-[#3B82F6] hover:bg-[#3B82F6]/10 transition-all duration-200 text-xs tracking-wider font-mono"
             >
               <span className="w-1.5 h-1.5 bg-[#10B981] rounded-full shrink-0" />
+              {isFlask && (
+                <span className="text-[9px] font-mono px-1 py-0.5 bg-[#F97316]/15 text-[#F97316] border border-[#F97316]/30 tracking-widest uppercase">
+                  Flask
+                </span>
+              )}
               <span>{address?.slice(0, 6)}…{address?.slice(-4)}</span>
               <span className="text-[#3B82F6]/50 ml-1">▾</span>
             </button>

@@ -7,7 +7,7 @@ import { useWallet } from "@/app/components/WalletProvider";
 import { getActivity, getStats, type ActivityEntry } from "@/app/lib/activity";
 
 export default function DashboardPage() {
-  const { address, isConnected, connect, hasDelegation, requestDelegation, isRequestingDelegation } = useWallet();
+  const { address, isConnected, isFlask, connect, hasDelegation, delegationError, requestDelegation, isRequestingDelegation } = useWallet();
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [balance, setBalance] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
@@ -87,13 +87,13 @@ export default function DashboardPage() {
             </div>
             <div>
               <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1">ERC-7715 Delegation</p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span
-                  className="w-2 h-2 rounded-full"
+                  className="w-2 h-2 rounded-full shrink-0"
                   style={{ background: hasDelegation ? "#10B981" : "rgba(255,255,255,0.2)" }}
                 />
                 <span className="text-sm text-white/70">{hasDelegation ? "Active" : "Not granted"}</span>
-                {!hasDelegation && (
+                {!hasDelegation && isFlask && (
                   <button
                     onClick={requestDelegation}
                     disabled={isRequestingDelegation}
@@ -102,7 +102,15 @@ export default function DashboardPage() {
                     {isRequestingDelegation ? "Requesting…" : "Grant →"}
                   </button>
                 )}
+                {!hasDelegation && !isFlask && (
+                  <span className="text-[9px] font-mono text-[#F97316]/60">Requires MetaMask Flask</span>
+                )}
               </div>
+              {delegationError && (
+                <p className="text-[9px] font-mono text-[#EF4444]/60 mt-1 max-w-xs leading-snug">
+                  {delegationError.length > 100 ? delegationError.slice(0, 100) + "…" : delegationError}
+                </p>
+              )}
             </div>
           </div>
         )}

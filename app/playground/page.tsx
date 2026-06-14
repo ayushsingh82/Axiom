@@ -67,8 +67,11 @@ const PAY_STEP_COLOR: Record<PayStep, string> = {
 };
 
 export default function PlaygroundPage() {
-  const { address, isConnected, connect, hasDelegation, isRequestingDelegation, requestDelegation, signX402Payment } =
-    useWallet();
+  const {
+    address, isConnected, isFlask, connect,
+    hasDelegation, isRequestingDelegation, delegationError,
+    requestDelegation, signX402Payment,
+  } = useWallet();
   const [mode, setMode] = useState<Mode>("text");
   const [selectedModelId, setSelectedModelId] = useState(TEXT_MODELS[0].id);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -351,14 +354,24 @@ export default function PlaygroundPage() {
                     {hasDelegation ? "ERC-7715 active" : "No delegation"}
                   </span>
                 </div>
-                {isConnected && !hasDelegation && (
+                {isConnected && !isFlask && !hasDelegation && (
+                  <p className="text-[9px] font-mono text-[#F97316]/60 leading-snug">
+                    Install MetaMask Flask for ERC-7715 session permissions
+                  </p>
+                )}
+                {isConnected && isFlask && !hasDelegation && (
                   <button
                     onClick={requestDelegation}
                     disabled={isRequestingDelegation}
                     className="w-full text-[10px] font-mono px-2 py-1.5 border border-[#8B5CF6]/30 text-[#8B5CF6] hover:bg-[#8B5CF6]/5 transition-all disabled:opacity-40 text-left"
                   >
-                    {isRequestingDelegation ? "Requesting..." : "Grant session →"}
+                    {isRequestingDelegation ? "Requesting…" : "Grant session →"}
                   </button>
+                )}
+                {delegationError && (
+                  <p className="text-[9px] font-mono text-[#EF4444]/60 leading-snug break-words">
+                    {delegationError}
+                  </p>
                 )}
                 <p className="text-[9px] text-white/20 font-mono leading-snug">
                   {MODE_COST[mode]} USDC / query
