@@ -77,14 +77,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { prompt, width = 512, height = 512 } = body;
 
-    // Generate image via Pollinations (free, no key needed)
     const start = Date.now();
-    const imgRes = await fetch(
-      `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&nologo=true`
-    );
-    if (!imgRes.ok) throw new Error("Image generation failed");
-    const buffer = await imgRes.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString("base64");
+
+    // Return Pollinations URL directly — browser loads it, avoids server timeout
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&nologo=true&seed=${Date.now()}`;
+
     const latency = ((Date.now() - start) / 1000).toFixed(2) + "s";
 
     // Settle
@@ -103,12 +100,11 @@ export async function POST(req: NextRequest) {
         txHash = (await s.json()).result?.txHash ?? null;
       } catch {}
     } else {
-      // Demo: fake tx hash
       txHash = "0x" + Math.random().toString(16).slice(2).padEnd(64, "0");
     }
 
     return Response.json(
-      { images: [base64], latency, txHash, model: body.model ?? "pollinations" },
+      { imageUrl, latency, txHash, model: body.model ?? "pollinations" },
       {
         headers: {
           "X-PAYMENT-RESPONSE": JSON.stringify({ success: true }),

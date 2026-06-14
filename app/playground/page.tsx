@@ -201,7 +201,9 @@ export default function PlaygroundPage() {
         });
       } else if (mode === "image") {
         const data = await paidRes.json();
-        const imageUrl = `data:image/jpeg;base64,${data.images?.[0]}`;
+        // Route returns direct URL (Pollinations) or base64 fallback
+        const imageUrl = data.imageUrl ?? (data.images?.[0] ? `data:image/jpeg;base64,${data.images[0]}` : null);
+        if (!imageUrl) throw new Error("No image returned");
         updateMsg(asstId, {
           content: "Generated image",
           imageUrl,
@@ -480,7 +482,13 @@ export default function PlaygroundPage() {
                             <p className="text-sm text-[#EF4444]/80">{msg.content}</p>
                           ) : msg.imageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={msg.imageUrl} alt="Generated" className="max-w-xs rounded-sm" />
+                            <img
+                              src={msg.imageUrl}
+                              alt="Generated"
+                              className="max-w-xs rounded-sm"
+                              style={{ minWidth: 120, minHeight: 80, background: "rgba(255,255,255,0.04)" }}
+                              onError={(e) => { (e.target as HTMLImageElement).alt = "Image failed to load"; }}
+                            />
                           ) : (
                             <p className="text-sm text-white/75 leading-relaxed whitespace-pre-wrap">
                               {msg.content}
