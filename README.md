@@ -1,52 +1,83 @@
 # Axiom
 
-Permissionless on-chain AI inference. Any agent or dApp calls it, pays per-query via x402, Venice runs the AI, and 1Shot settles gas in USDC.
+**Permissionless AI inference for on-chain agents and dApps.**
 
-## What it does
+Any agent or dApp calls Axiom, pays per-query via the x402 HTTP payment protocol, and gets back a Venice AI response — no API key, no subscription, no native ETH for gas.
 
-Axiom is an on-chain AI inference oracle. You send a prompt, pay a micro-fee automatically via the x402 HTTP payment protocol, and get back a Venice AI response — all without an API key, subscription, or native ETH for gas.
+---
 
-- **No signup** — connect a MetaMask Smart Account and query immediately
-- **Pay-per-query** — x402 handles micropayments automatically in the HTTP layer
-- **No ETH for gas** — 1Shot relayer settles all transactions with USDC
-- **Scoped permissions** — ERC-7710 delegations mean the app never touches your full wallet
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         CLIENT                                  │
+│               Agent · dApp · Script · Wallet                   │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │  POST /api/infer  {prompt, model}
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        AXIOM ORACLE                             │
+│                                                                 │
+│   ┌─────────────────┐        ┌──────────────────────────────┐  │
+│   │   x402 Gateway  │        │      Payment Verifier        │  │
+│   │                 │        │                              │  │
+│   │  1. Returns 402 │──────▶ │  2. Client pays 0.01 USDC   │  │
+│   │     + terms     │        │     via ERC-7710 delegation  │  │
+│   │                 │ ◀───── │     (no ETH needed)          │  │
+│   │  3. Accepts     │        │                              │  │
+│   │     X-PAYMENT   │        └──────────┬───────────────────┘  │
+│   └────────┬────────┘                   │                       │
+│            │                            │ 1Shot Relayer         │
+│            │                            │ settles on-chain      │
+│            ▼                            ▼                       │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │                    Venice AI Router                     │   │
+│   │                                                         │   │
+│   │   Text ──▶ llama-3.3-70b / venice-uncensored           │   │
+│   │   Image ─▶ grok-imagine / venice-sd35                  │   │
+│   │   Audio ─▶ tts-kokoro / tts-xai-v1                     │   │
+│   └──────────────────────────┬──────────────────────────────┘   │
+└──────────────────────────────┼──────────────────────────────────┘
+                               │  {result, latency, txHash}
+                               ▼
+                          CLIENT ✓
+```
+
+---
 
 ## How it works
 
-```
-Agent / dApp
-    │
-    ├─ POST /infer
-    │
-    │  ← HTTP 402 (payment required)
-    │
-    ├─ x402 client pays via ERC-7710 delegation
-    │     └─ 1Shot relayer submits tx, gas paid in USDC
-    │
-    └─ POST /infer (retry with payment proof)
-          └─ Venice AI runs inference → response returned
-```
+1. **Call** — client sends a prompt to `/api/infer`. No auth header needed.
+2. **402** — Axiom responds with payment terms: amount, asset, and network.
+3. **Pay** — an ERC-7710 delegation authorises a 0.01 USDC micro-payment. 1Shot relays the transaction with gas paid in USDC — no ETH required.
+4. **Infer** — the retried request (with `X-PAYMENT` header) is accepted. Venice AI runs the query and returns the result.
+
+---
 
 ## Tech stack
 
-| Layer | Technology |
-|---|---|
-| AI Inference | Venice AI (text, image, multimodal) |
-| Payments | x402 HTTP payment protocol |
-| Delegation | ERC-7710 smart account delegations |
-| Permissions | ERC-7715 fine-grained permission requests |
-| Gas abstraction | 1Shot Permissionless Relayer (USDC) |
-| Wallet | MetaMask Smart Accounts via EIP-7702 |
-| Frontend | Next.js 15, Tailwind CSS, Syne font |
+| Layer | Technology | Role |
+|---|---|---|
+| AI Inference | Venice AI | Text, image, and audio inference |
+| Payments | x402 Protocol | HTTP-native pay-per-call |
+| Delegation | ERC-7710 | Scoped smart account permissions |
+| Permissions | ERC-7715 | Fine-grained spend approval |
+| Gas abstraction | 1Shot Relayer | Gasless execution, paid in USDC |
+| Wallet | MetaMask Smart Accounts (EIP-7702) | EOA → smart account upgrade |
+| Network | Base Sepolia | Settlement chain (USDC) |
+| Frontend | Next.js 16, Tailwind CSS | UI |
 
-## Pages
+---
 
-| Route | Description |
-|---|---|
-| `/` | Landing — project overview, how it works, tech stack |
-| `/oracle` | Query interface — send prompts, see responses |
-| `/dashboard` | Agent activity — tx history, costs, latency |
-| `/docs` | Integration guide — x402, ERC-7710, 1Shot |
+## Hackathon tracks
+
+Built for the **MetaMask Smart Accounts Kit × 1Shot API × Venice AI Dev Cook Off**.
+
+- **Best x402 + ERC-7710** — x402 triggers ERC-7710-delegated micropayments on every inference call, requiring zero user interaction after initial delegation
+- **Best Use of Venice AI** — Venice powers all text, image, and audio inference behind the Oracle with no centralised API key exposed to the client
+- **Best Use of 1Shot Permissionless Relayer** — 1Shot executes every settlement transaction with gas abstracted to USDC on Base Sepolia
+
+---
 
 ## Getting started
 
@@ -55,12 +86,10 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Set a `VENICE_API_KEY` environment variable in `.env.local` to enable live inference.
 
-## Hackathon tracks
+```
+VENICE_API_KEY=your_key_here
+```
 
-Built for the MetaMask Smart Accounts Kit x 1Shot API x Venice AI Dev Cook Off.
-
-- **Best x402 + ERC-7710** — x402 triggers 7710-delegated micropayments per inference call
-- **Best Use of Venice AI** — Venice is the inference engine behind every Axiom response
-- **Best Use of 1Shot Permissionless Relayer** — 1Shot executes all settlements with gas in USDC
+Open [http://localhost:3000](http://localhost:3000) to explore the Oracle, Playground, and Docs.
