@@ -55,15 +55,20 @@ function WalletInner({ children }: { children: ReactNode }) {
 
   const connect = useCallback(async () => {
     setError(null);
-    // Find MetaMask connector specifically (set up in wagmi config)
-    const mm = connectors.find((c) => c.id === "metaMask" || c.name === "MetaMask");
-    const connector = mm ?? connectors[0];
-    if (!connector) {
-      setError("MetaMask not found. Install MetaMask to continue.");
+    // EIP-6963: wagmi auto-discovers all injected wallets.
+    // MetaMask's RDNS id is "io.metamask" — this avoids the MetaMask SDK
+    // authorization error and ignores OKX / other wallets.
+    const mm =
+      connectors.find((c) => c.id === "io.metamask") ??
+      connectors.find((c) => c.name === "MetaMask") ??
+      connectors.find((c) => c.id === "injected");
+
+    if (!mm) {
+      setError("MetaMask not found. Please install MetaMask.");
       return;
     }
     try {
-      wagmiConnect({ connector, chainId: baseSepolia.id });
+      wagmiConnect({ connector: mm, chainId: baseSepolia.id });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to connect");
     }
@@ -80,9 +85,11 @@ function WalletInner({ children }: { children: ReactNode }) {
     if (!address) return false;
     setIsRequestingDelegation(true);
     try {
-      const provider = await connectors
-        .find((c) => c.id === "metaMask" || c.name === "MetaMask")
-        ?.getProvider?.();
+      const provider = await (
+        connectors.find((c) => c.id === "io.metamask") ??
+        connectors.find((c) => c.name === "MetaMask") ??
+        connectors.find((c) => c.id === "injected")
+      )?.getProvider?.();
 
       const eth = (provider as { request?: (args: { method: string; params?: unknown[] }) => Promise<unknown> }) ?? null;
 
@@ -129,9 +136,11 @@ function WalletInner({ children }: { children: ReactNode }) {
       const validBefore = String(Math.floor(Date.now() / 1000) + 3600);
 
       // Get MetaMask provider via wagmi connector (not window.ethereum)
-      const provider = await connectors
-        .find((c) => c.id === "metaMask" || c.name === "MetaMask")
-        ?.getProvider?.();
+      const provider = await (
+        connectors.find((c) => c.id === "io.metamask") ??
+        connectors.find((c) => c.name === "MetaMask") ??
+        connectors.find((c) => c.id === "injected")
+      )?.getProvider?.();
 
       const eth = provider as {
         request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
