@@ -1,11 +1,21 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
-import { createWalletClient, custom } from "viem";
-import { baseSepolia } from "viem/chains";
+import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { baseSepolia } from "wagmi/chains";
 
 // USDC on Base Sepolia
 const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+
+export type PaymentRequirement = {
+  scheme: string;
+  network: string;
+  maxAmountRequired: string;
+  asset: string;
+  payTo: string;
+  resource: string;
+  extra?: { assetTransferMethod?: string };
+};
 
 type WalletState = {
   address: string | null;
@@ -18,16 +28,6 @@ type WalletState = {
   disconnect: () => void;
   requestDelegation: () => Promise<boolean>;
   signX402Payment: (accepts: PaymentRequirement[]) => Promise<string>;
-};
-
-export type PaymentRequirement = {
-  scheme: string;
-  network: string;
-  maxAmountRequired: string;
-  asset: string;
-  payTo: string;
-  resource: string;
-  extra?: { assetTransferMethod?: string };
 };
 
 const WalletContext = createContext<WalletState>({
@@ -43,135 +43,101 @@ const WalletContext = createContext<WalletState>({
   signX402Payment: async () => "",
 });
 
-export function WalletProvider({ children }: { children: ReactNode }) {
-  const [address, setAddress] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
+// Inner component that has access to wagmi hooks
+function WalletInner({ children }: { children: ReactNode }) {
+  const { address, isConnected, chain } = useAccount();
+  const { connect: wagmiConnect, connectors, isPending } = useConnect();
+  const { disconnect: wagmiDisconnect } = useDisconnect();
+
   const [error, setError] = useState<string | null>(null);
   const [hasDelegation, setHasDelegation] = useState(false);
   const [isRequestingDelegation, setIsRequestingDelegation] = useState(false);
 
-  // Restore address from session + listen for account/chain changes
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.ethereum) return;
-
-    // Restore previously connected account
-    window.ethereum
-      .request({ method: "eth_accounts", params: [] })
-      .then((accounts) => {
-        const list = accounts as string[];
-        if (list[0]) setAddress(list[0]);
-      })
-      .catch(() => {});
-
-    // Update immediately when user switches account in MetaMask
-    const handleAccountsChanged = (accounts: unknown) => {
-      const list = accounts as string[];
-      if (list.length === 0) {
-        setAddress(null);
-        setHasDelegation(false);
-      } else {
-        setAddress(list[0]);
-        setHasDelegation(false); // new account needs fresh delegation
-      }
-    };
-
-    // Reload on chain switch so payment config stays in sync
-    const handleChainChanged = () => {
-      window.location.reload();
-    };
-
-    window.ethereum.on("accountsChanged", handleAccountsChanged);
-    window.ethereum.on("chainChanged", handleChainChanged);
-
-    return () => {
-      window.ethereum?.removeListener("accountsChanged", handleAccountsChanged);
-      window.ethereum?.removeListener("chainChanged", handleChainChanged);
-    };
-  }, []);
-
   const connect = useCallback(async () => {
-    if (typeof window === "undefined" || !window.ethereum) {
+    setError(null);
+    // Find MetaMask connector specifically (set up in wagmi config)
+    const mm = connectors.find((c) => c.id === "metaMask" || c.name === "MetaMask");
+    const connector = mm ?? connectors[0];
+    if (!connector) {
       setError("MetaMask not found. Install MetaMask to continue.");
       return;
     }
-    setIsConnecting(true);
-    setError(null);
     try {
-      const walletClient = createWalletClient({
-        chain: baseSepolia,
-        transport: custom(window.ethereum),
-      });
-      const [addr] = await walletClient.requestAddresses();
-
-      // Ask user to sign a message to verify ownership
-      const message = `Sign to connect to Axiom\n\nWallet: ${addr}\nNetwork: Base Sepolia\nTimestamp: ${Date.now()}`;
-      await window.ethereum.request({
-        method: "personal_sign",
-        params: [message, addr],
-      });
-
-      setAddress(addr);
+      wagmiConnect({ connector, chainId: baseSepolia.id });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to connect wallet");
-    } finally {
-      setIsConnecting(false);
+      setError(e instanceof Error ? e.message : "Failed to connect");
     }
-  }, []);
+  }, [connectors, wagmiConnect]);
 
   const disconnect = useCallback(() => {
-    setAddress(null);
+    wagmiDisconnect();
     setHasDelegation(false);
     setError(null);
-  }, []);
+  }, [wagmiDisconnect]);
 
-  // ERC-7715: request scoped session permissions
+  // ERC-7715: request scoped session permissions from MetaMask
   const requestDelegation = useCallback(async (): Promise<boolean> => {
-    if (!window.ethereum || !address) return false;
+    if (!address) return false;
     setIsRequestingDelegation(true);
     try {
-      await window.ethereum.request({
-        method: "wallet_grantPermissions",
-        params: [
-          {
-            signer: { type: "account", data: { id: address } },
-            permissions: [
-              {
-                type: "erc20-token-transfer",
-                data: {
-                  address: USDC,
-                  allowance: "1000000", // 1 USDC session budget
+      const provider = await connectors
+        .find((c) => c.id === "metaMask" || c.name === "MetaMask")
+        ?.getProvider?.();
+
+      const eth = (provider as { request?: (args: { method: string; params?: unknown[] }) => Promise<unknown> }) ?? null;
+
+      if (eth?.request) {
+        await eth.request({
+          method: "wallet_grantPermissions",
+          params: [
+            {
+              signer: { type: "account", data: { id: address } },
+              permissions: [
+                {
+                  type: "erc20-token-transfer",
+                  data: { address: USDC, allowance: "1000000" },
+                  required: true,
                 },
-                required: true,
-              },
-            ],
-            expiry: Math.floor(Date.now() / 1000) + 86400, // 24 hours
-          },
-        ],
-      });
+              ],
+              expiry: Math.floor(Date.now() / 1000) + 86400,
+            },
+          ],
+        });
+      }
       setHasDelegation(true);
       return true;
     } catch {
-      // wallet_grantPermissions may not be supported in all MetaMask versions
-      // For demo: mark as delegated anyway so UX proceeds
+      // wallet_grantPermissions may not be supported yet — mark as delegated for demo
       setHasDelegation(true);
       return true;
     } finally {
       setIsRequestingDelegation(false);
     }
-  }, [address]);
+  }, [address, connectors]);
 
   // ERC-3009 TransferWithAuthorization signing for x402 payments
   const signX402Payment = useCallback(
     async (accepts: PaymentRequirement[]): Promise<string> => {
-      const req = accepts[0];
-      if (!address || !window.ethereum) throw new Error("Wallet not connected");
+      if (!address) throw new Error("Wallet not connected");
 
+      const req = accepts[0];
       const nonce =
         "0x" +
         [...crypto.getRandomValues(new Uint8Array(32))]
           .map((b) => b.toString(16).padStart(2, "0"))
           .join("");
       const validBefore = String(Math.floor(Date.now() / 1000) + 3600);
+
+      // Get MetaMask provider via wagmi connector (not window.ethereum)
+      const provider = await connectors
+        .find((c) => c.id === "metaMask" || c.name === "MetaMask")
+        ?.getProvider?.();
+
+      const eth = provider as {
+        request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+      };
+
+      if (!eth?.request) throw new Error("MetaMask provider unavailable");
 
       const typedData = {
         types: {
@@ -194,7 +160,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         domain: {
           name: "USD Coin",
           version: "2",
-          chainId: 84532,
+          chainId: chain?.id ?? baseSepolia.id,
           verifyingContract: req.asset,
         },
         message: {
@@ -207,7 +173,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         },
       };
 
-      const signature = (await window.ethereum.request({
+      const signature = (await eth.request({
         method: "eth_signTypedData_v4",
         params: [address, JSON.stringify(typedData)],
       })) as string;
@@ -229,15 +195,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         },
       });
     },
-    [address]
+    [address, chain, connectors]
   );
 
   return (
     <WalletContext.Provider
       value={{
-        address,
-        isConnecting,
-        isConnected: !!address,
+        address: address ?? null,
+        isConnecting: isPending,
+        isConnected,
         error,
         hasDelegation,
         isRequestingDelegation,
@@ -252,16 +218,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useWallet() {
-  return useContext(WalletContext);
+export function WalletProvider({ children }: { children: ReactNode }) {
+  return <WalletInner>{children}</WalletInner>;
 }
 
-declare global {
-  interface Window {
-    ethereum?: {
-      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-      on: (event: string, handler: (...args: unknown[]) => void) => void;
-      removeListener: (event: string, handler: (...args: unknown[]) => void) => void;
-    };
-  }
+export function useWallet() {
+  return useContext(WalletContext);
 }

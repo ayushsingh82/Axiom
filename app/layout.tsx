@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Syne } from "next/font/google";
 import "./globals.css";
+import Web3Provider from "./components/Web3Provider";
 import { WalletProvider } from "./components/WalletProvider";
 
 const syne = Syne({
@@ -30,7 +31,9 @@ export default function RootLayout({
       className={`${syne.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-black">
-        <WalletProvider>{children}</WalletProvider>
+        <Web3Provider>
+          <WalletProvider>{children}</WalletProvider>
+        </Web3Provider>
       </body>
     </html>
   );
