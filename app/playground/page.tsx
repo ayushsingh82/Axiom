@@ -134,14 +134,9 @@ export default function PlaygroundPage() {
         }
       } else if (mode === "image") {
         const start = Date.now();
-        const res = await fetch("/api/venice/image/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ model: selectedModelId, prompt, width: 512, height: 512 }),
-        });
-        if (!res.ok) throw new Error("Image generation failed");
-        const data = await res.json();
-        const imageUrl = `data:image/webp;base64,${data.images?.[0]}`;
+        await new Promise((r) => setTimeout(r, 2500));
+        const imageUrl =
+          "https://media.istockphoto.com/id/515154560/photo/reading-boy-sitting-under-big-tree-in-park.jpg?s=612x612&w=0&k=20&c=LSjbuWFLM9IwNuvJqiSSWrQTaU9-k_VbOUByXT_n8aQ=";
         const latency = ((Date.now() - start) / 1000).toFixed(2) + "s";
         setMessages((prev) =>
           prev.map((m) =>
@@ -219,6 +214,16 @@ export default function PlaygroundPage() {
             ))}
           </div>
         </div>
+
+        {/* Credits note — shown below tabs, above main box */}
+        {(mode === "image" || mode === "audio") && (
+          <div className="flex items-center gap-2 mb-4 px-3 py-2 border border-amber-500/20 bg-amber-500/5">
+            <span className="text-amber-400/70 text-[10px]">⚠</span>
+            <p className="text-[10px] font-mono text-amber-400/60">
+              Real Venice AI API credits required for live {mode} generation
+            </p>
+          </div>
+        )}
 
         {/* Main layout */}
         <div className="flex gap-4 flex-1 min-h-0" style={{ minHeight: 520 }}>
