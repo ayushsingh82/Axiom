@@ -50,9 +50,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [hasDelegation, setHasDelegation] = useState(false);
   const [isRequestingDelegation, setIsRequestingDelegation] = useState(false);
 
-  // Restore address from session
+  // Restore address from session + listen for account/chain changes
   useEffect(() => {
     if (typeof window === "undefined" || !window.ethereum) return;
+
+    // Restore previously connected account
     window.ethereum
       .request({ method: "eth_accounts", params: [] })
       .then((accounts) => {
@@ -60,6 +62,31 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         if (list[0]) setAddress(list[0]);
       })
       .catch(() => {});
+
+    // Update immediately when user switches account in MetaMask
+    const handleAccountsChanged = (accounts: unknown) => {
+      const list = accounts as string[];
+      if (list.length === 0) {
+        setAddress(null);
+        setHasDelegation(false);
+      } else {
+        setAddress(list[0]);
+        setHasDelegation(false); // new account needs fresh delegation
+      }
+    };
+
+    // Reload on chain switch so payment config stays in sync
+    const handleChainChanged = () => {
+      window.location.reload();
+    };
+
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+    window.ethereum.on("chainChanged", handleChainChanged);
+
+    return () => {
+      window.ethereum?.removeListener("accountsChanged", handleAccountsChanged);
+      window.ethereum?.removeListener("chainChanged", handleChainChanged);
+    };
   }, []);
 
   const connect = useCallback(async () => {
@@ -75,6 +102,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         transport: custom(window.ethereum),
       });
       const [addr] = await walletClient.requestAddresses();
+
+      // Ask user to sign a message to verify ownership
+      const message = `Sign to connect to Axiom\n\nWallet: ${addr}\nNetwork: Base Sepolia\nTimestamp: ${Date.now()}`;
+      await window.ethereum.request({
+        method: "personal_sign",
+        params: [message, addr],
+      });
+
       setAddress(addr);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to connect wallet");
