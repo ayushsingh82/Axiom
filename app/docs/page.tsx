@@ -17,9 +17,9 @@ export default function DocsPage() {
       <RailLines />
       <Navbar />
 
-      <div className="max-w-5xl mx-auto px-8 pt-20 pb-24 flex gap-14">
+      <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-20 pb-24 flex gap-8 lg:gap-14">
         {/* Sidebar */}
-        <aside className="hidden lg:block w-44 shrink-0">
+        <aside className="hidden lg:block w-40 shrink-0">
           <div className="sticky top-24 pt-1">
             <p className="text-[10px] text-white/40 uppercase tracking-widest mb-4">Contents</p>
             <nav className="flex flex-col gap-0.5">
@@ -64,7 +64,7 @@ export default function DocsPage() {
               delegations so users only sign once per session.
             </p>
 
-            <div className="mt-6 grid grid-cols-3 gap-px bg-white/10 border border-white/10 overflow-hidden">
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-px bg-white/10 border border-white/10 overflow-hidden">
               {[
                 { label: "Venice AI", desc: "LLM, image, and audio inference" },
                 { label: "x402 Protocol", desc: "HTTP-native pay-per-call payments" },
@@ -167,7 +167,7 @@ export default function DocsPage() {
               ))}
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-px bg-white/10 border border-white/10 overflow-hidden">
+            <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-px bg-white/10 border border-white/10 overflow-hidden">
               <div className="bg-black px-5 py-4">
                 <p className="text-xs text-white/50 uppercase tracking-wider mb-1.5">x402 Balance</p>
                 <p className="text-[10px] font-mono text-white/40 mb-1">GET /api/venice/x402/balance/&#123;address&#125;</p>
