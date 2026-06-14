@@ -1,48 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/app/components/Navbar";
 import RailLines from "@/app/components/RailLines";
 import { useWallet } from "@/app/components/WalletProvider";
-
-const mockActivity = [
-  { id: "0x3a1f", type: "text", model: "venice-uncensored", status: "settled", cost: "0.010 USDC", latency: "1.2s", time: "2m ago" },
-  { id: "0x9c2e", type: "image", model: "grok-imagine-image", status: "settled", cost: "0.040 USDC", latency: "3.8s", time: "7m ago" },
-  { id: "0x11ab", type: "text", model: "llama-3.3-70b", status: "settled", cost: "0.010 USDC", latency: "0.9s", time: "9m ago" },
-  { id: "0x77fd", type: "audio", model: "tts-kokoro", status: "settled", cost: "0.005 USDC", latency: "0.7s", time: "15m ago" },
-  { id: "0x45cc", type: "text", model: "qwen-2.5-coder-32b", status: "failed", cost: "—", latency: "—", time: "21m ago" },
-];
-
-const apiBreakdown = [
-  { label: "Chat Completions", endpoint: "POST /api/venice/chat", calls: 47, color: "#3B82F6" },
-  { label: "Image Generate", endpoint: "POST /api/venice/image/generate", calls: 12, color: "#8B5CF6" },
-  { label: "Audio Speech", endpoint: "POST /api/venice/audio/speech", calls: 8, color: "#10B981" },
-  { label: "x402 Balance", endpoint: "GET /api/venice/x402/balance", calls: 23, color: "#F59E0B" },
-  { label: "Transactions", endpoint: "GET /api/venice/x402/transactions", calls: 5, color: "#06B6D4" },
-];
+import { getActivity, getStats, type ActivityEntry } from "@/app/lib/activity";
 
 export default function DashboardPage() {
-  const { address, isConnected, connect } = useWallet();
-  const [balanceState, setBalanceState] = useState<"idle" | "loading" | "done">("idle");
+  const { address, isConnected, connect, hasDelegation, requestDelegation, isRequestingDelegation } = useWallet();
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [balance, setBalance] = useState<number | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
 
-  async function fetchBalance() {
-    if (!address) return;
-    setBalanceState("loading");
-    try {
-      const res = await fetch(`/api/venice/x402/balance/${address}`, {
-        headers: { "X-Sign-In-With-X": "siwx_pending" },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setBalance(data.data?.balanceUsd ?? 0);
-        setBalanceState("done");
-      } else {
-        setBalanceState("idle");
-      }
-    } catch {
-      setBalanceState("idle");
-    }
+  // Load activity from localStorage
+  useEffect(() => {
+    setActivity(getActivity());
+    const interval = setInterval(() => setActivity(getActivity()), 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-fetch Venice balance when wallet connects
+  useEffect(() => {
+    if (!isConnected || !address) return;
+    setBalanceLoading(true);
+    fetch(`/api/venice/x402/balance/${address}`, {
+      headers: { "X-Sign-In-With-X": "siwx_pending" },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) setBalance(data.data?.balanceUsd ?? 0);
+      })
+      .catch(() => {})
+      .finally(() => setBalanceLoading(false));
+  }, [isConnected, address]);
+
+  const stats = getStats(activity);
+
+  const byType = [
+    { label: "Chat", endpoint: "/api/infer", calls: stats.byType.text, color: "#3B82F6" },
+    { label: "Image", endpoint: "/api/x402/image", calls: stats.byType.image, color: "#8B5CF6" },
+    { label: "Audio", endpoint: "/api/x402/audio", calls: stats.byType.audio, color: "#10B981" },
+  ];
+
+  function timeAgo(ts: number) {
+    const secs = Math.floor((Date.now() - ts) / 1000);
+    if (secs < 60) return `${secs}s ago`;
+    if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+    return `${Math.floor(secs / 3600)}h ago`;
   }
 
   return (
@@ -50,65 +54,104 @@ export default function DashboardPage() {
       <RailLines />
       <Navbar />
 
-      <div className="max-w-5xl mx-auto px-8 pt-20 pb-24">
+      <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-20 pb-24">
         <p className="text-xs text-white/30 uppercase tracking-widest mb-4">Dashboard</p>
-        <h1 className="text-4xl font-bold text-white mb-3">Usage &amp; Activity</h1>
-        <p className="text-white/40 mb-10 max-w-xl">
-          Venice AI API usage, x402 payments, and on-chain settlement history.
+        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">Usage &amp; Activity</h1>
+        <p className="text-white/50 mb-10 max-w-xl text-sm">
+          x402 payment history, Venice AI usage, and on-chain settlement data.
         </p>
+
+        {/* Wallet / delegation status */}
+        {!isConnected ? (
+          <div className="border border-white/10 px-6 py-8 mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <p className="text-white font-semibold mb-1">Connect your wallet</p>
+              <p className="text-sm text-white/40">See your x402 balance, delegation status, and query history.</p>
+            </div>
+            <button
+              onClick={connect}
+              className="px-6 py-2.5 bg-white text-black text-sm font-semibold hover:bg-white/90 active:scale-95 transition-all shrink-0"
+            >
+              Connect Wallet
+            </button>
+          </div>
+        ) : (
+          <div className="border border-white/10 px-5 py-4 mb-8 flex flex-wrap items-center gap-6">
+            <div>
+              <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Wallet</p>
+              <p className="text-sm font-mono text-white/80">{address}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Network</p>
+              <p className="text-sm font-mono text-white/60">Base Sepolia</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1">ERC-7715 Delegation</p>
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ background: hasDelegation ? "#10B981" : "rgba(255,255,255,0.2)" }}
+                />
+                <span className="text-sm text-white/70">{hasDelegation ? "Active" : "Not granted"}</span>
+                {!hasDelegation && (
+                  <button
+                    onClick={requestDelegation}
+                    disabled={isRequestingDelegation}
+                    className="text-[10px] font-mono px-2 py-0.5 border border-[#8B5CF6]/30 text-[#8B5CF6] hover:bg-[#8B5CF6]/5 transition-all disabled:opacity-40"
+                  >
+                    {isRequestingDelegation ? "Requesting…" : "Grant →"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-white/10 border border-white/10 overflow-hidden mb-8">
-          {/* Venice balance */}
-          <div className="bg-black px-6 py-6">
+          <div className="bg-black px-5 sm:px-6 py-6">
             <p className="text-xs text-white/30 uppercase tracking-wider mb-2">Venice Balance</p>
             {!isConnected ? (
-              <button
-                onClick={connect}
-                className="text-xs text-white/40 hover:text-white/70 transition-colors underline underline-offset-2"
-              >
-                Connect wallet
-              </button>
-            ) : balanceState === "done" && balance !== null ? (
-              <p className="text-2xl font-bold text-white">${balance.toFixed(2)}</p>
+              <p className="text-white/20 text-sm">—</p>
+            ) : balanceLoading ? (
+              <p className="text-white/30 text-sm font-mono">Loading…</p>
+            ) : balance !== null ? (
+              <p className="text-2xl font-bold text-white">${balance.toFixed(4)}</p>
             ) : (
-              <button
-                onClick={fetchBalance}
-                disabled={balanceState === "loading"}
-                className="text-xs text-[#3B82F6] hover:text-[#3B82F6]/70 transition-colors disabled:opacity-40"
-              >
-                {balanceState === "loading" ? "Fetching…" : "Fetch Balance →"}
-              </button>
+              <p className="text-white/30 text-sm">Unavailable</p>
             )}
           </div>
-          {[
-            { label: "Total Queries", value: "67" },
-            { label: "Total Spent", value: "0.83 USDC" },
-            { label: "Avg Latency", value: "1.6s" },
-          ].map((stat) => (
-            <div key={stat.label} className="bg-black px-6 py-6">
-              <p className="text-xs text-white/30 uppercase tracking-wider mb-2">{stat.label}</p>
-              <p className="text-2xl font-bold text-white">{stat.value}</p>
-            </div>
-          ))}
+          <div className="bg-black px-5 sm:px-6 py-6">
+            <p className="text-xs text-white/30 uppercase tracking-wider mb-2">Total Queries</p>
+            <p className="text-2xl font-bold text-white">{stats.total || "—"}</p>
+          </div>
+          <div className="bg-black px-5 sm:px-6 py-6">
+            <p className="text-xs text-white/30 uppercase tracking-wider mb-2">Total Spent</p>
+            <p className="text-2xl font-bold text-white">
+              {stats.totalCost > 0 ? `${stats.totalCost.toFixed(4)} USDC` : "—"}
+            </p>
+          </div>
+          <div className="bg-black px-5 sm:px-6 py-6">
+            <p className="text-xs text-white/30 uppercase tracking-wider mb-2">Avg Latency</p>
+            <p className="text-2xl font-bold text-white">
+              {stats.avgLatency !== "—" ? `${stats.avgLatency}s` : "—"}
+            </p>
+          </div>
         </div>
 
         {/* API breakdown */}
-        <p className="text-xs text-white/30 uppercase tracking-widest mb-4">Venice API Breakdown</p>
+        <p className="text-xs text-white/30 uppercase tracking-widest mb-4">x402 Endpoint Usage</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-white/10 border border-white/10 overflow-hidden mb-10">
-          {apiBreakdown.map((api) => (
+          {byType.map((api) => (
             <div key={api.label} className="bg-black px-5 py-5 relative overflow-hidden">
-              <div
-                className="absolute top-0 inset-x-0 h-[1px]"
-                style={{ background: `${api.color}50` }}
-              />
-              <p className="text-[10px] font-mono text-white/20 mb-1.5">{api.endpoint}</p>
+              <div className="absolute top-0 inset-x-0 h-[1px]" style={{ background: `${api.color}50` }} />
+              <p className="text-[10px] font-mono text-white/30 mb-1.5">{api.endpoint}</p>
               <p className="text-sm text-white font-semibold mb-2">{api.label}</p>
               <div className="flex items-end justify-between">
                 <p className="text-3xl font-bold" style={{ color: api.color }}>
-                  {api.calls}
+                  {api.calls || 0}
                 </p>
-                <span className="text-xs text-white/20 mb-1">calls</span>
+                <span className="text-xs text-white/20 mb-1">queries</span>
               </div>
             </div>
           ))}
@@ -116,47 +159,52 @@ export default function DashboardPage() {
 
         {/* Activity table */}
         <p className="text-xs text-white/30 uppercase tracking-widest mb-4">Recent Activity</p>
-        <div className="border border-white/10 overflow-hidden">
-          <div className="grid grid-cols-6 px-6 py-3 border-b border-white/10 bg-white/[0.02] text-xs text-white/30 uppercase tracking-wider">
-            <span>Tx ID</span>
-            <span>Type</span>
-            <span>Model</span>
-            <span>Cost</span>
-            <span>Latency</span>
-            <span>Status</span>
+        {activity.length === 0 ? (
+          <div className="border border-white/10 px-6 py-12 text-center">
+            <p className="text-white/30 text-sm mb-2">No activity yet</p>
+            <p className="text-white/15 text-xs font-mono">
+              Go to the Playground and make a query — it will appear here automatically.
+            </p>
           </div>
-          {mockActivity.map((row) => (
-            <div
-              key={row.id}
-              className="grid grid-cols-6 px-6 py-4 border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-            >
-              <span className="text-white/50 font-mono text-xs">{row.id}</span>
-              <span className="text-white/50 text-xs border border-white/10 w-fit px-2 py-0.5 self-center">
-                {row.type}
-              </span>
-              <span className="text-white/30 font-mono text-[10px] self-center truncate pr-2">
-                {row.model}
-              </span>
-              <span className="text-white/50 font-mono text-xs">{row.cost}</span>
-              <span className="text-white/50 font-mono text-xs">{row.latency}</span>
-              <span
-                className={`text-xs font-mono ${
-                  row.status === "settled"
-                    ? "text-[#10B981]/70"
-                    : row.status === "pending"
-                    ? "text-[#F59E0B]/70"
-                    : "text-[#EF4444]/70"
-                }`}
-              >
-                {row.status}
-              </span>
+        ) : (
+          <div className="border border-white/10 overflow-hidden overflow-x-auto">
+            <div className="grid grid-cols-6 px-6 py-3 border-b border-white/10 bg-white/[0.02] text-[10px] text-white/30 uppercase tracking-wider min-w-[600px]">
+              <span>ID</span>
+              <span>Type</span>
+              <span>Model</span>
+              <span>Cost</span>
+              <span>Latency</span>
+              <span>Status</span>
             </div>
-          ))}
-        </div>
+            {activity.map((row) => (
+              <div
+                key={row.id + row.timestamp}
+                className="grid grid-cols-6 px-6 py-4 border-b border-white/5 hover:bg-white/[0.02] transition-colors min-w-[600px]"
+              >
+                <span className="text-white/50 font-mono text-xs">0x{row.id}</span>
+                <span className="text-white/60 text-xs border border-white/10 w-fit px-2 py-0.5 self-center">
+                  {row.type}
+                </span>
+                <span className="text-white/30 font-mono text-[10px] self-center truncate pr-2">{row.model}</span>
+                <span className="text-white/60 font-mono text-xs">
+                  {row.cost > 0 ? `${row.cost} USDC` : "—"}
+                </span>
+                <span className="text-white/50 font-mono text-xs">{row.latency}</span>
+                <span
+                  className={`text-xs font-mono ${
+                    row.status === "settled" ? "text-[#10B981]/70" : "text-[#EF4444]/70"
+                  }`}
+                >
+                  {row.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
-        {!isConnected && (
-          <p className="text-xs text-white/20 mt-4">
-            Connect wallet to load live Venice data &amp; x402 balance
+        {activity.length > 0 && (
+          <p className="text-[10px] font-mono text-white/15 mt-3">
+            Showing {activity.length} recent {activity.length === 1 ? "query" : "queries"} · stored locally
           </p>
         )}
       </div>
