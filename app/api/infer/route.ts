@@ -3,6 +3,9 @@ import OpenAI from "openai";
 
 const PAYOUT_ADDRESS =
   process.env.ORACLE_PAYOUT_ADDRESS ?? "0x0000000000000000000000000000000000000000";
+const DEMO =
+  !process.env.ORACLE_PAYOUT_ADDRESS ||
+  PAYOUT_ADDRESS === "0x0000000000000000000000000000000000000000";
 const VENICE_API_KEY = process.env.VENICE_API_KEY ?? "";
 
 // USDC on Base Sepolia
@@ -67,25 +70,25 @@ export async function POST(request: NextRequest) {
 
   // Payment header present — verify via MetaMask facilitator then call Venice
   try {
-    // Verify payment with facilitator
-    const verifyRes = await fetch(FACILITATOR_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "x402_verify",
-        params: [paymentHeader, paymentRequirements],
-      }),
-    });
-
-    if (!verifyRes.ok) {
-      return Response.json({ error: "Payment verification failed" }, { status: 402 });
-    }
-
-    const verifyData = await verifyRes.json();
-    if (verifyData.error || !verifyData.result?.isValid) {
-      return Response.json({ error: "Invalid payment" }, { status: 402 });
+    // Skip verification in demo mode (no payout address configured)
+    if (!DEMO) {
+      const verifyRes = await fetch(FACILITATOR_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "x402_verify",
+          params: [paymentHeader, paymentRequirements],
+        }),
+      });
+      if (!verifyRes.ok) {
+        return Response.json({ error: "Payment verification failed" }, { status: 402 });
+      }
+      const verifyData = await verifyRes.json();
+      if (verifyData.error || !verifyData.result?.isValid) {
+        return Response.json({ error: "Invalid payment" }, { status: 402 });
+      }
     }
 
     // Parse request body
@@ -101,13 +104,53 @@ export async function POST(request: NextRequest) {
 
     const start = Date.now();
 
+    // Settle helper
+    async function settle(): Promise<string> {
+      if (DEMO) return "0x" + Math.random().toString(16).slice(2).padEnd(64, "0");
+      try {
+        const s = await fetch(FACILITATOR_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0", id: 2,
+            method: "x402_settle",
+            params: [paymentHeader, paymentRequirements],
+          }),
+        });
+        return (await s.json()).result?.txHash ?? null;
+      } catch {
+        return null as unknown as string;
+      }
+    }
+
+    // Demo mode — no Venice key
+    if (!VENICE_API_KEY) {
+      const latency = "0.4s";
+      const txHash = await settle();
+      return Response.json(
+        {
+          result: `[Demo] Oracle received: "${prompt}". Add VENICE_API_KEY for live ${model} inference.`,
+          model,
+          latency,
+          txHash,
+        },
+        {
+          headers: {
+            "X-PAYMENT-RESPONSE": JSON.stringify({ success: true }),
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+          },
+        }
+      );
+    }
+
     // Call Venice AI
     const client = new OpenAI({
       apiKey: VENICE_API_KEY,
       baseURL: "https://api.venice.ai/api/v1",
     });
 
-    const response = await client.chat.completions.create({
+    const veniceResponse = await client.chat.completions.create({
       model,
       messages: [{ role: "user", content: prompt }],
       // @ts-expect-error venice_parameters is Venice-specific
@@ -115,27 +158,15 @@ export async function POST(request: NextRequest) {
     });
 
     const latency = ((Date.now() - start) / 1000).toFixed(2) + "s";
-
-    // Settle payment via facilitator
-    const settleRes = await fetch(FACILITATOR_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 2,
-        method: "x402_settle",
-        params: [paymentHeader, paymentRequirements],
-      }),
-    });
-    const settleData = await settleRes.json();
+    const txHash = await settle();
 
     return Response.json(
       {
-        result: response.choices[0].message.content,
-        model: response.model,
-        usage: response.usage,
+        result: veniceResponse.choices[0].message.content,
+        model: veniceResponse.model,
+        usage: veniceResponse.usage,
         latency,
-        txHash: settleData.result?.txHash ?? null,
+        txHash,
       },
       {
         headers: {
