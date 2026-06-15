@@ -5,26 +5,6 @@ const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const FACILITATOR = "https://tx-sentinel-base-sepolia.dev-api.cx.metamask.io/platform/v2/x402";
 const DEMO = !process.env.ORACLE_PAYOUT_ADDRESS || PAYOUT === "0x0000000000000000000000000000000000000000";
 
-const REQUIREMENTS = {
-  scheme: "exact",
-  network: "eip155:84532",
-  maxAmountRequired: "40000", // 0.04 USDC
-  resource: "/api/x402/image",
-  description: "Axiom image generation — 0.04 USDC per image",
-  mimeType: "application/json",
-  payTo: PAYOUT,
-  maxTimeoutSeconds: 60,
-  asset: USDC,
-  outputSchema: null,
-  extra: {
-    assetTransferMethod: "erc7710",
-    facilitatorUrl: FACILITATOR,
-    name: "USDC",
-    decimals: 6,
-    version: "2",
-  },
-};
-
 export async function OPTIONS() {
   return new Response(null, {
     status: 204,
@@ -38,32 +18,52 @@ export async function OPTIONS() {
 }
 
 export async function POST(req: NextRequest) {
-  const paymentHeader = req.headers.get("X-PAYMENT");
-
-  if (!paymentHeader) {
-    return Response.json(
-      { x402Version: 2, accepts: [REQUIREMENTS], error: "Payment required" },
-      {
-        status: 402,
-        headers: {
-          "X-PAYMENT-REQUIRED": JSON.stringify([REQUIREMENTS]),
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Expose-Headers": "X-PAYMENT-REQUIRED",
-        },
-      }
-    );
-  }
-
   try {
+    const paymentHeader = req.headers.get("X-PAYMENT");
+
+    const requirements = {
+      scheme: "exact",
+      network: "eip155:84532",
+      maxAmountRequired: "40000",
+      resource: "/api/x402/image",
+      description: "Axiom image generation — 0.04 USDC per image",
+      mimeType: "application/json",
+      payTo: PAYOUT,
+      maxTimeoutSeconds: 60,
+      asset: USDC,
+      extra: {
+        assetTransferMethod: "erc7710",
+        facilitatorUrl: FACILITATOR,
+        name: "USDC",
+        decimals: 6,
+        version: "2",
+      },
+    };
+
+    if (!paymentHeader) {
+      return Response.json(
+        { x402Version: 2, accepts: [requirements], error: "Payment required" },
+        {
+          status: 402,
+          headers: {
+            "X-PAYMENT-REQUIRED": JSON.stringify([requirements]),
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Expose-Headers": "X-PAYMENT-REQUIRED",
+          },
+        }
+      );
+    }
+
     // Verify payment (skip in demo mode)
     if (!DEMO) {
       const verifyRes = await fetch(FACILITATOR, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          jsonrpc: "2.0", id: 1,
+          jsonrpc: "2.0",
+          id: 1,
           method: "x402_verify",
-          params: [paymentHeader, REQUIREMENTS],
+          params: [paymentHeader, requirements],
         }),
       });
       if (verifyRes.ok) {
@@ -75,11 +75,20 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { prompt, width = 512, height = 512 } = body;
+    const { prompt, width = 512, height = 512 } = body as {
+      prompt: string;
+      width?: number;
+      height?: number;
+      model?: string;
+    };
+
+    if (!prompt?.trim()) {
+      return Response.json({ error: "Prompt is required" }, { status: 400 });
+    }
 
     const start = Date.now();
 
-    // Return Pollinations URL directly — browser loads it, avoids server timeout
+    // Return Pollinations URL — browser loads it directly, no server timeout risk
     const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&nologo=true&seed=${Date.now()}`;
 
     const latency = ((Date.now() - start) / 1000).toFixed(2) + "s";
@@ -92,9 +101,10 @@ export async function POST(req: NextRequest) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            jsonrpc: "2.0", id: 2,
+            jsonrpc: "2.0",
+            id: 2,
             method: "x402_settle",
-            params: [paymentHeader, REQUIREMENTS],
+            params: [paymentHeader, requirements],
           }),
         });
         txHash = (await s.json()).result?.txHash ?? null;
@@ -115,6 +125,9 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     console.error("[x402/image]", err);
-    return Response.json({ error: "Image generation failed" }, { status: 500 });
+    return Response.json(
+      { error: err instanceof Error ? err.message : "Image generation failed" },
+      { status: 500 }
+    );
   }
 }

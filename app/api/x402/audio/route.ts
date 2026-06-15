@@ -5,26 +5,6 @@ const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const FACILITATOR = "https://tx-sentinel-base-sepolia.dev-api.cx.metamask.io/platform/v2/x402";
 const DEMO = !process.env.ORACLE_PAYOUT_ADDRESS || PAYOUT === "0x0000000000000000000000000000000000000000";
 
-const REQUIREMENTS = {
-  scheme: "exact",
-  network: "eip155:84532",
-  maxAmountRequired: "5000", // 0.005 USDC
-  resource: "/api/x402/audio",
-  description: "Axiom audio TTS — 0.005 USDC per generation",
-  mimeType: "application/json",
-  payTo: PAYOUT,
-  maxTimeoutSeconds: 60,
-  asset: USDC,
-  outputSchema: null,
-  extra: {
-    assetTransferMethod: "erc7710",
-    facilitatorUrl: FACILITATOR,
-    name: "USDC",
-    decimals: 6,
-    version: "2",
-  },
-};
-
 export async function OPTIONS() {
   return new Response(null, {
     status: 204,
@@ -38,31 +18,51 @@ export async function OPTIONS() {
 }
 
 export async function POST(req: NextRequest) {
-  const paymentHeader = req.headers.get("X-PAYMENT");
-
-  if (!paymentHeader) {
-    return Response.json(
-      { x402Version: 2, accepts: [REQUIREMENTS], error: "Payment required" },
-      {
-        status: 402,
-        headers: {
-          "X-PAYMENT-REQUIRED": JSON.stringify([REQUIREMENTS]),
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Expose-Headers": "X-PAYMENT-REQUIRED",
-        },
-      }
-    );
-  }
-
   try {
+    const paymentHeader = req.headers.get("X-PAYMENT");
+
+    const requirements = {
+      scheme: "exact",
+      network: "eip155:84532",
+      maxAmountRequired: "5000",
+      resource: "/api/x402/audio",
+      description: "Axiom audio TTS — 0.005 USDC per generation",
+      mimeType: "application/json",
+      payTo: PAYOUT,
+      maxTimeoutSeconds: 60,
+      asset: USDC,
+      extra: {
+        assetTransferMethod: "erc7710",
+        facilitatorUrl: FACILITATOR,
+        name: "USDC",
+        decimals: 6,
+        version: "2",
+      },
+    };
+
+    if (!paymentHeader) {
+      return Response.json(
+        { x402Version: 2, accepts: [requirements], error: "Payment required" },
+        {
+          status: 402,
+          headers: {
+            "X-PAYMENT-REQUIRED": JSON.stringify([requirements]),
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Expose-Headers": "X-PAYMENT-REQUIRED",
+          },
+        }
+      );
+    }
+
     if (!DEMO) {
       const verifyRes = await fetch(FACILITATOR, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          jsonrpc: "2.0", id: 1,
+          jsonrpc: "2.0",
+          id: 1,
           method: "x402_verify",
-          params: [paymentHeader, REQUIREMENTS],
+          params: [paymentHeader, requirements],
         }),
       });
       if (verifyRes.ok) {
@@ -73,13 +73,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { input } = await req.json();
+    const body = await req.json();
+    const { input } = body as { input: string };
     const latency = "0.3s";
     const txHash = DEMO
       ? "0x" + Math.random().toString(16).slice(2).padEnd(64, "0")
       : null;
 
-    // Return text for browser TTS — no Venice key needed for demo
     return Response.json(
       { browserTTS: true, text: input, latency, txHash },
       {
@@ -91,6 +91,9 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     console.error("[x402/audio]", err);
-    return Response.json({ error: "Audio generation failed" }, { status: 500 });
+    return Response.json(
+      { error: err instanceof Error ? err.message : "Audio generation failed" },
+      { status: 500 }
+    );
   }
 }
