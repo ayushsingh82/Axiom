@@ -3,10 +3,6 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
-import { createWalletClient, custom, parseUnits } from "viem";
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { erc7715ProviderActions } from "@metamask/smart-accounts-kit/actions";
-import { createx402DelegationProvider } from "@metamask/smart-accounts-kit/experimental";
 
 const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`;
 
@@ -69,11 +65,11 @@ type EthProvider = {
 };
 
 // Ephemeral session key — generated once per browser session, used as the delegate EOA
-function getOrCreateSessionKey(): `0x${string}` {
-  if (typeof window === "undefined") return generatePrivateKey();
+function getOrCreateSessionKey(generatePK: () => `0x${string}`): `0x${string}` {
+  if (typeof window === "undefined") return generatePK();
   const stored = sessionStorage.getItem("axiom_session_pk");
   if (stored) return stored as `0x${string}`;
-  const key = generatePrivateKey();
+  const key = generatePK();
   sessionStorage.setItem("axiom_session_pk", key);
   return key;
 }
@@ -154,8 +150,21 @@ function WalletInner({ children }: { children: ReactNode }) {
     try {
       const eth = await getProvider();
 
+      // Dynamic imports — avoids SSR crash from browser-specific globals in these packages
+      const [
+        { createWalletClient, custom, parseUnits },
+        { generatePrivateKey, privateKeyToAccount },
+        { erc7715ProviderActions },
+        { createx402DelegationProvider },
+      ] = await Promise.all([
+        import("viem"),
+        import("viem/accounts"),
+        import("@metamask/smart-accounts-kit/actions"),
+        import("@metamask/smart-accounts-kit/experimental"),
+      ]);
+
       // Ephemeral session EOA — this is the delegate that redeems the permission
-      const sessionKey = getOrCreateSessionKey();
+      const sessionKey = getOrCreateSessionKey(generatePrivateKey);
       const sessionAccount = privateKeyToAccount(sessionKey);
 
       // Extend wallet client with ERC-7715 provider actions (Smart Accounts Kit)

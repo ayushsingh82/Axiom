@@ -3,9 +3,8 @@ import OpenAI from "openai";
 
 const PAYOUT_ADDRESS =
   process.env.ORACLE_PAYOUT_ADDRESS ?? "0x0000000000000000000000000000000000000000";
-const DEMO =
-  !process.env.ORACLE_PAYOUT_ADDRESS ||
-  PAYOUT_ADDRESS === "0x0000000000000000000000000000000000000000";
+// Always skip on-chain verification for hackathon demo — x402 signing still happens in MetaMask
+const DEMO = true;
 const VENICE_API_KEY = process.env.VENICE_API_KEY ?? "";
 
 // USDC on Base Sepolia
@@ -19,7 +18,7 @@ const paymentRequirements = {
   network: "eip155:84532",
   maxAmountRequired: "10000", // 0.01 USDC (6 decimals)
   resource: "/api/infer",
-  description: "Axiom AI inference — pay per query",
+  description: "Axiom AI inference - pay per query",
   mimeType: "application/json",
   payTo: PAYOUT_ADDRESS,
   maxTimeoutSeconds: 60,

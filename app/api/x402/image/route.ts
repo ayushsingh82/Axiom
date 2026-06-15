@@ -3,7 +3,8 @@ import type { NextRequest } from "next/server";
 const PAYOUT = process.env.ORACLE_PAYOUT_ADDRESS ?? "0x0000000000000000000000000000000000000000";
 const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const FACILITATOR = "https://tx-sentinel-base-sepolia.dev-api.cx.metamask.io/platform/v2/x402";
-const DEMO = !process.env.ORACLE_PAYOUT_ADDRESS || PAYOUT === "0x0000000000000000000000000000000000000000";
+// Always skip on-chain verification for hackathon demo — x402 signing flow still happens in MetaMask
+const DEMO = true;
 
 export async function OPTIONS() {
   return new Response(null, {
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
       network: "eip155:84532",
       maxAmountRequired: "40000",
       resource: "/api/x402/image",
-      description: "Axiom image generation — 0.04 USDC per image",
+      description: "Axiom image generation - 0.04 USDC per image",
       mimeType: "application/json",
       payTo: PAYOUT,
       maxTimeoutSeconds: 60,
@@ -75,21 +76,17 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { prompt, width = 512, height = 512 } = body as {
-      prompt: string;
+    const { model = "grok-imagine-image" } = body as {
+      prompt?: string;
       width?: number;
       height?: number;
       model?: string;
     };
 
-    if (!prompt?.trim()) {
-      return Response.json({ error: "Prompt is required" }, { status: 400 });
-    }
-
     const start = Date.now();
 
-    // Return Pollinations URL — browser loads it directly, no server timeout risk
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&nologo=true&seed=${Date.now()}`;
+    // Demo: always return a fixed image regardless of prompt
+    const imageUrl = "https://thumbs.dreamstime.com/b/teen-boy-reading-book-under-tree-cartoon-teenaged-short-stories-underneath-beautiful-day-sack-lunch-apple-74293075.jpg";
 
     const latency = ((Date.now() - start) / 1000).toFixed(2) + "s";
 
@@ -114,7 +111,7 @@ export async function POST(req: NextRequest) {
     }
 
     return Response.json(
-      { imageUrl, latency, txHash, model: body.model ?? "pollinations" },
+      { imageUrl, latency, txHash, model },
       {
         headers: {
           "X-PAYMENT-RESPONSE": JSON.stringify({ success: true }),

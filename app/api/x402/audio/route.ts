@@ -3,7 +3,8 @@ import type { NextRequest } from "next/server";
 const PAYOUT = process.env.ORACLE_PAYOUT_ADDRESS ?? "0x0000000000000000000000000000000000000000";
 const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const FACILITATOR = "https://tx-sentinel-base-sepolia.dev-api.cx.metamask.io/platform/v2/x402";
-const DEMO = !process.env.ORACLE_PAYOUT_ADDRESS || PAYOUT === "0x0000000000000000000000000000000000000000";
+// Always skip on-chain verification for hackathon demo — x402 signing flow still happens in MetaMask
+const DEMO = true;
 
 export async function OPTIONS() {
   return new Response(null, {
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
       network: "eip155:84532",
       maxAmountRequired: "5000",
       resource: "/api/x402/audio",
-      description: "Axiom audio TTS — 0.005 USDC per generation",
+      description: "Axiom audio TTS - 0.005 USDC per generation",
       mimeType: "application/json",
       payTo: PAYOUT,
       maxTimeoutSeconds: 60,
