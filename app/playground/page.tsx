@@ -138,17 +138,7 @@ export default function PlaygroundPage() {
 
         // Step 3 — sign payment (ERC-7710 / ERC-3009)
         updateMsg(asstId, { payStep: "signing" });
-        try {
-          paymentHeader = await signX402Payment(accepts);
-        } catch {
-          // Fall back to mock if MetaMask signing unavailable
-          paymentHeader = JSON.stringify({
-            x402Version: 2,
-            scheme: "exact",
-            network: "eip155:84532",
-            payload: { mock: true, from: address },
-          });
-        }
+        paymentHeader = await signX402Payment(accepts);
 
         await new Promise((r) => setTimeout(r, 400));
 
