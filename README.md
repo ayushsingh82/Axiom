@@ -79,17 +79,24 @@ Built for the **MetaMask Smart Accounts Kit × 1Shot API × Venice AI Dev Cook O
 
 ---
 
-## Getting started
+## Live demo
+
+**[https://axiom-402.vercel.app](https://axiom-402.vercel.app)**
+
+---
+
+## Getting started (local)
 
 ```bash
 npm install
 npm run dev
 ```
 
-Set a `VENICE_API_KEY` environment variable in `.env.local` to enable live inference.
+Set environment variables in `.env.local`:
 
 ```
 VENICE_API_KEY=your_key_here
+ORACLE_PAYOUT_ADDRESS=your_wallet_address
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to explore the Oracle, Playground, and Docs.
+Open [https://axiom-402.vercel.app](https://axiom-402.vercel.app) or your local dev server to explore the Oracle, Playground, and Docs.

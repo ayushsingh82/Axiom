@@ -69,8 +69,8 @@ const PAY_STEP_COLOR: Record<PayStep, string> = {
 export default function PlaygroundPage() {
   const {
     address, isConnected, isFlask, connect,
-    hasDelegation, isRequestingDelegation, delegationError,
-    requestDelegation, signX402Payment,
+    hasDelegation, isRequestingDelegation, delegationError, delegationMethodUnsupported,
+    requestDelegation, signX402Payment, getDelegationPayment,
   } = useWallet();
   const [mode, setMode] = useState<Mode>("text");
   const [selectedModelId, setSelectedModelId] = useState(TEXT_MODELS[0].id);
@@ -136,9 +136,13 @@ export default function PlaygroundPage() {
         updateMsg(asstId, { payStep: "paying" });
         await new Promise((r) => setTimeout(r, 600));
 
-        // Step 3 — sign payment (ERC-7710 / ERC-3009)
+        // Step 3 — sign payment: ERC-7710 delegation if active, else ERC-3009
         updateMsg(asstId, { payStep: "signing" });
-        paymentHeader = await signX402Payment(accepts);
+        if (hasDelegation) {
+          paymentHeader = await getDelegationPayment(accepts);
+        } else {
+          paymentHeader = await signX402Payment(accepts);
+        }
 
         await new Promise((r) => setTimeout(r, 400));
 
@@ -344,12 +348,17 @@ export default function PlaygroundPage() {
                     {hasDelegation ? "ERC-7715 active" : "No delegation"}
                   </span>
                 </div>
-                {isConnected && !isFlask && !hasDelegation && (
+                {isConnected && delegationMethodUnsupported && (
+                  <p className="text-[9px] font-mono text-white/30 leading-snug">
+                    ERC-7715 not in this Flask build — payments still work via direct signing
+                  </p>
+                )}
+                {isConnected && !isFlask && !hasDelegation && !delegationMethodUnsupported && (
                   <p className="text-[9px] font-mono text-[#F97316]/60 leading-snug">
                     Install MetaMask Flask for ERC-7715 session permissions
                   </p>
                 )}
-                {isConnected && isFlask && !hasDelegation && (
+                {isConnected && isFlask && !hasDelegation && !delegationMethodUnsupported && (
                   <button
                     onClick={requestDelegation}
                     disabled={isRequestingDelegation}
@@ -358,7 +367,7 @@ export default function PlaygroundPage() {
                     {isRequestingDelegation ? "Requesting…" : "Grant session →"}
                   </button>
                 )}
-                {delegationError && (
+                {delegationError && !delegationMethodUnsupported && (
                   <p className="text-[9px] font-mono text-[#EF4444]/60 leading-snug break-words">
                     {delegationError}
                   </p>

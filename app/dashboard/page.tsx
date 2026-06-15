@@ -7,7 +7,7 @@ import { useWallet } from "@/app/components/WalletProvider";
 import { getActivity, getStats, type ActivityEntry } from "@/app/lib/activity";
 
 export default function DashboardPage() {
-  const { address, isConnected, isFlask, connect, hasDelegation, delegationError, requestDelegation, isRequestingDelegation } = useWallet();
+  const { address, isConnected, isFlask, connect, hasDelegation, delegationError, delegationMethodUnsupported, requestDelegation, isRequestingDelegation } = useWallet();
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [balance, setBalance] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
@@ -93,7 +93,7 @@ export default function DashboardPage() {
                   style={{ background: hasDelegation ? "#10B981" : "rgba(255,255,255,0.2)" }}
                 />
                 <span className="text-sm text-white/70">{hasDelegation ? "Active" : "Not granted"}</span>
-                {!hasDelegation && isFlask && (
+                {!hasDelegation && isFlask && !delegationMethodUnsupported && (
                   <button
                     onClick={requestDelegation}
                     disabled={isRequestingDelegation}
@@ -105,8 +105,11 @@ export default function DashboardPage() {
                 {!hasDelegation && !isFlask && (
                   <span className="text-[9px] font-mono text-[#F97316]/60">Requires MetaMask Flask</span>
                 )}
+                {delegationMethodUnsupported && (
+                  <span className="text-[9px] font-mono text-white/30">ERC-7715 not in this Flask build</span>
+                )}
               </div>
-              {delegationError && (
+              {delegationError && !delegationMethodUnsupported && (
                 <p className="text-[9px] font-mono text-[#EF4444]/60 mt-1 max-w-xs leading-snug">
                   {delegationError.length > 100 ? delegationError.slice(0, 100) + "…" : delegationError}
                 </p>
@@ -176,30 +179,43 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="border border-white/10 overflow-hidden overflow-x-auto">
-            <div className="grid grid-cols-6 px-6 py-3 border-b border-white/10 bg-white/[0.02] text-[10px] text-white/30 uppercase tracking-wider min-w-[600px]">
-              <span>ID</span>
+            <div className="grid grid-cols-6 px-6 py-3 border-b border-white/10 bg-white/[0.02] text-[10px] text-white/30 uppercase tracking-wider min-w-[640px]">
               <span>Type</span>
               <span>Model</span>
               <span>Cost</span>
               <span>Latency</span>
+              <span>Tx</span>
               <span>Status</span>
             </div>
             {activity.map((row) => (
               <div
                 key={row.id + row.timestamp}
-                className="grid grid-cols-6 px-6 py-4 border-b border-white/5 hover:bg-white/[0.02] transition-colors min-w-[600px]"
+                className="grid grid-cols-6 px-6 py-4 border-b border-white/5 hover:bg-white/[0.02] transition-colors min-w-[640px]"
               >
-                <span className="text-white/50 font-mono text-xs">0x{row.id}</span>
                 <span className="text-white/60 text-xs border border-white/10 w-fit px-2 py-0.5 self-center">
                   {row.type}
                 </span>
                 <span className="text-white/30 font-mono text-[10px] self-center truncate pr-2">{row.model}</span>
-                <span className="text-white/60 font-mono text-xs">
+                <span className="text-white/60 font-mono text-xs self-center">
                   {row.cost > 0 ? `${row.cost} USDC` : "—"}
                 </span>
-                <span className="text-white/50 font-mono text-xs">{row.latency}</span>
+                <span className="text-white/50 font-mono text-xs self-center">{row.latency}</span>
+                <span className="text-xs font-mono self-center">
+                  {row.txHash ? (
+                    <a
+                      href={`https://sepolia.basescan.org/tx/${row.txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#3B82F6]/60 hover:text-[#3B82F6] transition-colors"
+                    >
+                      {row.txHash.slice(0, 6)}…{row.txHash.slice(-4)}
+                    </a>
+                  ) : (
+                    <span className="text-white/20">—</span>
+                  )}
+                </span>
                 <span
-                  className={`text-xs font-mono ${
+                  className={`text-xs font-mono self-center ${
                     row.status === "settled" ? "text-[#10B981]/70" : "text-[#EF4444]/70"
                   }`}
                 >

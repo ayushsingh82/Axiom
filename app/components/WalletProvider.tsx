@@ -3,8 +3,12 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
+import { createWalletClient, custom, parseUnits } from "viem";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { erc7715ProviderActions } from "@metamask/smart-accounts-kit/actions";
+import { createx402DelegationProvider } from "@metamask/smart-accounts-kit/experimental";
 
-const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`;
 
 export type PaymentRequirement = {
   scheme: string;
@@ -33,11 +37,13 @@ type WalletState = {
   hasDelegation: boolean;
   delegationContext: DelegationContext | null;
   delegationError: string | null;
+  delegationMethodUnsupported: boolean;
   isRequestingDelegation: boolean;
   connect: () => void;
   disconnect: () => void;
   requestDelegation: () => Promise<boolean>;
   signX402Payment: (accepts: PaymentRequirement[]) => Promise<string>;
+  getDelegationPayment: (accepts: PaymentRequirement[]) => Promise<string>;
 };
 
 const WalletContext = createContext<WalletState>({
@@ -49,16 +55,28 @@ const WalletContext = createContext<WalletState>({
   hasDelegation: false,
   delegationContext: null,
   delegationError: null,
+  delegationMethodUnsupported: false,
   isRequestingDelegation: false,
   connect: () => {},
   disconnect: () => {},
   requestDelegation: async () => false,
   signX402Payment: async () => "",
+  getDelegationPayment: async () => "",
 });
 
 type EthProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
 };
+
+// Ephemeral session key — generated once per browser session, used as the delegate EOA
+function getOrCreateSessionKey(): `0x${string}` {
+  if (typeof window === "undefined") return generatePrivateKey();
+  const stored = sessionStorage.getItem("axiom_session_pk");
+  if (stored) return stored as `0x${string}`;
+  const key = generatePrivateKey();
+  sessionStorage.setItem("axiom_session_pk", key);
+  return key;
+}
 
 function WalletInner({ children }: { children: ReactNode }) {
   const { address, isConnected, chain } = useAccount();
@@ -69,9 +87,11 @@ function WalletInner({ children }: { children: ReactNode }) {
   const [hasDelegation, setHasDelegation] = useState(false);
   const [delegationContext, setDelegationContext] = useState<DelegationContext | null>(null);
   const [delegationError, setDelegationError] = useState<string | null>(null);
+  const [delegationMethodUnsupported, setDelegationMethodUnsupported] = useState(false);
   const [isRequestingDelegation, setIsRequestingDelegation] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [delegationProvider, setDelegationProvider] = useState<((req: any) => Promise<any>) | null>(null);
 
-  // Prefer MetaMask Flask (io.metamask.flask) over regular MetaMask (io.metamask)
   function getFlaskConnector() {
     return (
       connectors.find((c) => c.id === "io.metamask.flask") ??
@@ -99,98 +119,111 @@ function WalletInner({ children }: { children: ReactNode }) {
     setHasDelegation(false);
     setDelegationContext(null);
     setDelegationError(null);
+    setDelegationMethodUnsupported(false);
+    setDelegationProvider(null);
     setError(null);
   }, [wagmiDisconnect]);
 
-  // Get the provider from the Flask/MetaMask connector
   async function getProvider(): Promise<EthProvider> {
-    // Try wagmi connector first (respects EIP-6963 RDNS targeting)
     const connector = getFlaskConnector();
     const connectorProvider = await connector?.getProvider?.().catch(() => null);
     if (connectorProvider) return connectorProvider as EthProvider;
-
-    // Fallback: window.ethereum — Flask sets this when it is the active wallet
     if (typeof window !== "undefined" && (window as unknown as { ethereum?: EthProvider }).ethereum) {
       return (window as unknown as { ethereum: EthProvider }).ethereum;
     }
-
     throw new Error("MetaMask Flask provider not available. Is Flask unlocked?");
   }
 
-  // ERC-7715: wallet_grantPermissions — shows real MetaMask Flask confirmation
+  function extractError(e: unknown): string {
+    if (e instanceof Error) return e.message;
+    if (typeof e === "object" && e !== null) {
+      const o = e as Record<string, unknown>;
+      if (typeof o.message === "string") return o.message;
+      if (typeof o.code === "number") return `Code ${o.code}`;
+    }
+    return String(e);
+  }
+
+  // ERC-7715 via Smart Accounts Kit — requestExecutionPermissions + ERC-7710 delegation
   const requestDelegation = useCallback(async (): Promise<boolean> => {
     if (!address) return false;
     setIsRequestingDelegation(true);
     setDelegationError(null);
-
-    // Extract human-readable error from anything Flask throws
-    function extractError(e: unknown): string {
-      if (e instanceof Error) return e.message;
-      if (typeof e === "object" && e !== null) {
-        const o = e as Record<string, unknown>;
-        if (typeof o.message === "string") return o.message;
-        if (typeof o.code === "number") return `Code ${o.code}`;
-      }
-      return String(e);
-    }
+    setDelegationMethodUnsupported(false);
 
     try {
       const eth = await getProvider();
 
-      // EIP-7715 — try without signer field first (Flask infers connected account).
-      // Permission type: try erc20-token-transfer, fall back to native-token-transfer.
-      const candidates = [
+      // Ephemeral session EOA — this is the delegate that redeems the permission
+      const sessionKey = getOrCreateSessionKey();
+      const sessionAccount = privateKeyToAccount(sessionKey);
+
+      // Extend wallet client with ERC-7715 provider actions (Smart Accounts Kit)
+      const walletClient = createWalletClient({
+        transport: custom(eth as Parameters<typeof custom>[0]),
+        account: address as `0x${string}`,
+        chain: baseSepolia,
+      }).extend(erc7715ProviderActions());
+
+      const currentTime = Math.floor(Date.now() / 1000);
+      const expiry = currentTime + 60 * 60 * 24 * 30; // 30 days
+
+      // Request ERC-20 periodic permission — 1 USDC per week budget for AI queries
+      const grantedPermissions = await walletClient.requestExecutionPermissions([
         {
-          // ERC-20 USDC spend cap
-          type: "erc20-token-transfer",
-          data: { address: USDC, allowance: `0x${BigInt(1_000_000).toString(16)}` },
+          chainId: baseSepolia.id,
+          expiry,
+          to: sessionAccount.address,
+          permission: {
+            type: "erc20-token-periodic" as const,
+            data: {
+              tokenAddress: USDC,
+              periodAmount: parseUnits("1", 6), // 1 USDC per period
+              periodDuration: 604800,           // 1 week in seconds
+              startTime: currentTime,
+              justification:
+                "Axiom AI oracle — recurring USDC budget for pay-per-query Venice AI inference",
+            },
+            isAdjustmentAllowed: false,
+          },
         },
-        {
-          // Fallback: plain ETH cap (shows Flask dialog even if ERC-20 unsupported)
-          type: "native-token-transfer",
-          data: { allowance: `0x${BigInt(1_000_000).toString(16)}` },
-        },
-      ];
+      ]);
 
-      let result: DelegationContext | null = null;
-      let lastErr = "";
-
-      for (const perm of candidates) {
-        try {
-          result = (await eth.request({
-            method: "wallet_grantPermissions",
-            params: [
-              {
-                expiry: Math.floor(Date.now() / 1000) + 86_400,
-                permissions: [{ ...perm, required: true, policies: [] }],
-              },
-            ],
-          })) as DelegationContext;
-          break;
-        } catch (e) {
-          lastErr = extractError(e);
-          // 4200 = method not supported, -32601 = method not found → try next
-          const isUnsupported =
-            lastErr.includes("not supported") ||
-            lastErr.includes("not found") ||
-            lastErr.includes("4200") ||
-            lastErr.includes("32601");
-          // User rejection (4001) → stop immediately, don't try next
-          const isRejection = lastErr.includes("4001") || lastErr.toLowerCase().includes("reject") || lastErr.toLowerCase().includes("denied");
-          if (isRejection || !isUnsupported) break;
-        }
-      }
-
-      if (!result) {
-        setDelegationError(lastErr || "wallet_grantPermissions returned no result");
+      if (!grantedPermissions || grantedPermissions.length === 0) {
+        setDelegationError("No permissions were granted");
         return false;
       }
 
-      setDelegationContext(result);
+      const permission = grantedPermissions[0] as { context: string; expiry?: number; from?: string };
+
+      // Build x402 ERC-7710 delegation provider using the granted permission context
+      const provider = createx402DelegationProvider({
+        account: sessionAccount,
+        from: (permission.from ?? address) as `0x${string}`,
+        parentPermissionContext: permission.context as `0x${string}`,
+      });
+
+      setDelegationProvider(() => provider);
+      setDelegationContext({
+        context: permission.context,
+        expiry: permission.expiry ?? expiry,
+      });
       setHasDelegation(true);
       return true;
     } catch (e: unknown) {
-      setDelegationError(extractError(e));
+      const msg = extractError(e);
+      const isMethodMissing =
+        msg.toLowerCase().includes("not exist") ||
+        msg.toLowerCase().includes("is not available") ||
+        msg.toLowerCase().includes("requestexecutionpermissions") ||
+        msg.includes("4200") ||
+        msg.includes("32601");
+
+      if (isMethodMissing) {
+        setDelegationMethodUnsupported(true);
+      } else {
+        setDelegationError(msg);
+      }
       setHasDelegation(false);
       return false;
     } finally {
@@ -199,7 +232,35 @@ function WalletInner({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address, connectors]);
 
-  // ERC-3009 TransferWithAuthorization — signs the actual x402 payment
+  // ERC-7710 delegation payment — used when delegation is active
+  const getDelegationPayment = useCallback(
+    async (accepts: PaymentRequirement[]): Promise<string> => {
+      if (!delegationProvider) throw new Error("No active delegation. Grant a session first.");
+      const req = accepts[0];
+
+      const paymentReqs = {
+        scheme: req.scheme,
+        network: req.network,
+        asset: req.asset,
+        amount: req.maxAmountRequired,
+        payTo: req.payTo,
+        maxTimeoutSeconds: 60,
+        extra: req.extra ?? {},
+      };
+
+      const payload = await delegationProvider(paymentReqs);
+
+      return JSON.stringify({
+        x402Version: 2,
+        scheme: "exact",
+        network: req.network,
+        payload,
+      });
+    },
+    [delegationProvider]
+  );
+
+  // ERC-3009 TransferWithAuthorization — fallback when no delegation
   const signX402Payment = useCallback(
     async (accepts: PaymentRequirement[]): Promise<string> => {
       if (!address) throw new Error("Wallet not connected");
@@ -267,13 +328,11 @@ function WalletInner({ children }: { children: ReactNode }) {
             validBefore,
             nonce,
           },
-          // Include delegation context if available (ERC-7710)
-          ...(delegationContext ? { delegation: delegationContext.context } : {}),
         },
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [address, chain, connectors, delegationContext]
+    [address, chain, connectors]
   );
 
   return (
@@ -287,11 +346,13 @@ function WalletInner({ children }: { children: ReactNode }) {
         hasDelegation,
         delegationContext,
         delegationError,
+        delegationMethodUnsupported,
         isRequestingDelegation,
         connect,
         disconnect,
         requestDelegation,
         signX402Payment,
+        getDelegationPayment,
       }}
     >
       {children}
